@@ -362,6 +362,7 @@ export default function CustomerProfile({
             <AddDebtForm
               customer={customer}
               shops={shops}
+              transactions={transactions}
               onSave={onAddTransaction}
               onClose={() => setShowAddModal(false)}
             />

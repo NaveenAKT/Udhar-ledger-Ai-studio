@@ -21,7 +21,7 @@ service cloud.firestore {
     }
 
     function isSuperUser() {
-      return isSignedIn() && request.auth.token.email == "naveenkumar31343@gmail.com";
+      return isSignedIn() && (request.auth.token.email == "naveenkumar31343@gmail.com" || request.auth.token.email == "akuthota.rajkumar@gmail.com");
     }
 
     function isValidId(id) {
@@ -45,15 +45,16 @@ service cloud.firestore {
     // --- Entity Validation Helpers ---
     function isValidShop(data) {
       return data.keys().hasAll(['id', 'name', 'phone', 'address', 'ownerId', 'createdAt', 'collaboratorIds', 'collaboratorEmails'])
-        && data.keys().size() == 8
+        && data.keys().size() >= 8 && data.keys().size() <= 9
         && isValidId(data.id)
         && data.name is string && data.name.size() > 0 && data.name.size() <= 200
         && data.phone is string && data.phone.size() <= 30
         && data.address is string && data.address.size() <= 500
-        && data.ownerId == request.auth.uid
+        && (data.ownerId == request.auth.uid || isSuperUser() || (resource != null && data.ownerId == resource.data.ownerId))
         && data.createdAt is string && data.createdAt.size() <= 100
         && data.collaboratorIds is list
-        && data.collaboratorEmails is list;
+        && data.collaboratorEmails is list
+        && (!data.keys().hasAny(['gstNumber']) || (data.gstNumber is string && data.gstNumber.size() <= 100));
     }
 
     function isValidMerchant(data) {
@@ -82,18 +83,24 @@ service cloud.firestore {
 
     function isValidTransaction(data) {
       return data.keys().hasAll(['id', 'customerId', 'customerName', 'shopId', 'shopName', 'amount', 'status', 'notes', 'ownerId', 'createdAt', 'updatedAt'])
-        && data.keys().size() == 11
+        && data.keys().size() >= 11 && data.keys().size() <= 17
         && isValidId(data.id)
         && isValidId(data.customerId)
         && data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 200
         && isValidId(data.shopId)
         && data.shopName is string && data.shopName.size() > 0 && data.shopName.size() <= 200
-        && (data.amount is int || data.amount is float) && data.amount > 0 && data.amount <= 2000
+        && (data.amount is int || data.amount is float) && data.amount > 0 && data.amount <= 500000
         && data.status in ['Paid', 'Unpaid']
         && data.notes is string && data.notes.size() <= 1000
-        && (data.ownerId == request.auth.uid || (resource != null && data.ownerId == resource.data.ownerId))
+        && (data.ownerId == request.auth.uid || (resource != null && data.ownerId == resource.data.ownerId) || hasShopAccess(data.shopId))
         && data.createdAt is string && data.createdAt.size() <= 100
-        && data.updatedAt is string && data.updatedAt.size() <= 100;
+        && data.updatedAt is string && data.updatedAt.size() <= 100
+        && (!data.keys().hasAny(['createdByUid']) || (data.createdByUid is string && data.createdByUid.size() <= 128))
+        && (!data.keys().hasAny(['createdByEmail']) || (data.createdByEmail is string && data.createdByEmail.size() <= 200))
+        && (!data.keys().hasAny(['createdByName']) || (data.createdByName is string && data.createdByName.size() <= 200))
+        && (!data.keys().hasAny(['updatedByUid']) || (data.updatedByUid is string && data.updatedByUid.size() <= 128))
+        && (!data.keys().hasAny(['updatedByEmail']) || (data.updatedByEmail is string && data.updatedByEmail.size() <= 200))
+        && (!data.keys().hasAny(['updatedByName']) || (data.updatedByName is string && data.updatedByName.size() <= 200));
     }
 
     function isValidMonthlyLog(data) {

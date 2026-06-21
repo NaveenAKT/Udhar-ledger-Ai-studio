@@ -4,18 +4,19 @@
  */
 
 import React, { useState } from 'react';
-import { Shop, Customer } from '../types';
+import { Shop, Customer, Transaction } from '../types';
 import { useLanguage } from '../lib/translations';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 interface AddDebtFormProps {
   customer: Customer;
   shops: Shop[];
+  transactions: Transaction[];
   onSave: (shopId: string, shopName: string, amount: number, notes: string) => Promise<void>;
   onClose: () => void;
 }
 
-export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDebtFormProps) {
+export default function AddDebtForm({ customer, shops, transactions, onSave, onClose }: AddDebtFormProps) {
   const { t, language } = useLanguage();
   const [selectedShopId, setSelectedShopId] = useState<string>(shops[0]?.id || '');
   const [amountInput, setAmountInput] = useState<string>('');
@@ -30,6 +31,17 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
   // Find the details of selected shop
   const selectedShop = shops.find(s => s.id === selectedShopId);
 
+  // Sum up outstanding amounts for this customer in selectedShopId
+  const currentShopDebt = React.useMemo(() => {
+    let total = 0;
+    (transactions || []).forEach(tx => {
+      if (tx.customerId === customer.id && tx.shopId === selectedShopId && tx.status === 'Unpaid') {
+        total += tx.amount;
+      }
+    });
+    return total;
+  }, [customer.id, selectedShopId, transactions]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setHasAmountError(false);
@@ -39,6 +51,10 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
         ? "దయచేసి మొదట ఒక దుకాణాన్ని క్రియేట్ చేయండి లేదా ఎంచుకోండి." 
         : "Please register or select a shop first.");
       return;
+    }
+
+    if (txType === 'payment' && currentShopDebt <= 0) {
+      return; // Doubly prevent submit
     }
 
     const parsedAmount = parseFloat(amountInput);
@@ -110,6 +126,23 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
         </div>
       </div>
 
+      {/* Safety block forbidding clearing debt when currentShopDebt <= 0 */}
+      {txType === 'payment' && currentShopDebt <= 0 && (
+        <div id="no-debt-warning" className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-900 text-xs font-medium leading-relaxed flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
+          <div>
+            <p className="font-extrabold text-red-950 mb-0.5">
+              {language === 'te' ? 'జమ నమోదు సాధ్యం కాదు' : 'Clearing Debt Not Allowed'}
+            </p>
+            <p>
+              {language === 'te'
+                ? 'ఈ దుకాణంలో ఈ కస్టమర్‌కు ఎలాంటి యాక్టివ్ బాకీ బ్యాలెన్స్ లేదు. కాబట్టి జమ/చెల్లింపు రికార్డ్ నమోదు చేయబడదు.'
+                : 'This customer has no active outstanding debt at this shop, so clearing debt is not allowed.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Modal Overlay */}
       {showConfirmModal && selectedShop && (
         <div id="confirm-modal-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[80]">
@@ -134,21 +167,15 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
             )}
 
             <div className="my-4 p-4 bg-slate-50/50 border border-gray-150 rounded-lg">
-              <p className="text-gray-800 text-sm leading-relaxed">
-                {language === 'te' ? (
-                  <>
-                    లావాదేవీ ధృవీకరణ: <strong className="text-slate-905 font-extrabold text-sm">
-                      మీరు ఖచ్చితంగా ₹{parseFloat(amountInput).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {txType === 'due' ? 'బకాయి మొత్తాన్ని' : 'జమ మొత్తాన్ని (చెల్లింపు)'} కస్టమర్ {customer.name} ఖాతాలో {selectedShop.name} వద్ద నమోదు చేయాలనుకుంటున్నారా?
-                    </strong>
-                  </>
-                ) : (
-                  <>
-                    Transaction Verification: <strong className="text-slate-905 font-extrabold text-sm">
-                      Are you sure you want to log ₹{parseFloat(amountInput).toLocaleString('en-IN', { minimumFractionDigits: 2 })} as {txType === 'due' ? 'outstanding debt' : 'payment received (clearing debt)'} for customer {customer.name} at {selectedShop.name}?
-                    </strong>
-                  </>
-                )}
-              </p>
+              {language === 'te' ? (
+                <p id="transaction-verification-message" className="text-gray-800 text-sm leading-relaxed font-extrabold text-slate-905">
+                  లావాదేవీ ధృవీకరణ: మీరు ఖచ్చితంగా ₹{parseFloat(amountInput).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {txType === 'due' ? 'బకాయి మొత్తాన్ని' : 'జమ మొత్తాన్ని (చెల్లింపు)'} కస్టమర్ {customer.name} ఖాతాలో {selectedShop.name} వద్ద నమోదు చేయాలనుకుంటున్నారా?
+                </p>
+              ) : (
+                <p id="transaction-verification-message" className="text-gray-800 text-sm leading-relaxed font-semibold text-slate-905">
+                  Transaction Verification: Are you sure you want to log ₹{parseFloat(amountInput).toLocaleString('en-IN', { minimumFractionDigits: 2 })} as {txType === 'due' ? 'outstanding debt' : 'payment received (clearing debt)'} for customer {customer.name} at {selectedShop.name}?
+                </p>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
@@ -225,13 +252,14 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
               type="number"
               step="0.01"
               required
+              disabled={txType === 'payment' && currentShopDebt <= 0}
               placeholder="0.00"
               value={amountInput}
               onChange={(e) => {
                 setAmountInput(e.target.value);
                 setHasAmountError(false);
               }}
-              className={`w-full bg-white border rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-gray-900 transition-colors ${
+              className={`w-full bg-white border rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-gray-900 transition-colors disabled:bg-gray-100 disabled:text-gray-400 ${
                 hasAmountError ? 'border-red-500 ring-2 ring-red-100 placeholder-red-300' : 'border-gray-200'
               }`}
             />
@@ -250,17 +278,18 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
           <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
             {txType === 'due' 
               ? (language === 'te' ? 'వివరాలు / సామాన్ల వివరాలు' : 'Comments / Itemized List')
-              : (language === 'te' ? 'చెల్లింపు వివరాలు (ఆప్షనల్)' : 'Payment Notes (Optional)')}
+              : (language === 'te' ? '代理చెల్లింపు వివరాలు (ఆప్షనల్)' : 'Payment Notes (Optional)')}
           </label>
           <textarea
             id="debt-notes-textarea"
             rows={3}
+            disabled={txType === 'payment' && currentShopDebt <= 0}
             placeholder={txType === 'due' 
               ? (language === 'te' ? 'కొనుగోలు చేసిన సామాన్లు, ఉదా. బియ్యం, పప్పు' : 'What was purchased on credit? e.g. Rice, Oil')
               : (language === 'te' ? 'కూలీ జమ, నగదు, గూగుల్ పే వగైరా' : 'e.g. Google Pay, Cash, partial clearance')}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-800 font-medium"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-800 font-medium disabled:bg-gray-100 disabled:text-gray-400"
           />
         </div>
 
@@ -276,7 +305,7 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
           <button
             id="save-debt-form-btn"
             type="submit"
-            disabled={shops.length === 0}
+            disabled={shops.length === 0 || (txType === 'payment' && currentShopDebt <= 0)}
             className={`px-4 py-2 text-white font-semibold rounded-lg text-sm transition flex items-center gap-2 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer shadow-xs ${
               txType === 'due' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
             }`}

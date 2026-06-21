@@ -45,7 +45,13 @@
         "notes": { "type": "string", "description": "Additional notes/comments" },
         "ownerId": { "type": "string", "description": "User UID of the merchant owner" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Creation server timestamp" },
-        "updatedAt": { "type": "string", "format": "date-time", "description": "Update server timestamp" }
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update server timestamp" },
+        "createdByUid": { "type": "string", "description": "UID of the creator" },
+        "createdByEmail": { "type": "string", "description": "Email of the creator" },
+        "createdByName": { "type": "string", "description": "Name of the creator" },
+        "updatedByUid": { "type": "string", "description": "UID of the updater" },
+        "updatedByEmail": { "type": "string", "description": "Email of the updater" },
+        "updatedByName": { "type": "string", "description": "Name of the updater" }
       },
       "required": ["id", "customerId", "customerName", "shopId", "shopName", "amount", "status", "ownerId", "createdAt", "updatedAt"]
     },
