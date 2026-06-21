@@ -27,7 +27,8 @@ import {
   Trash2,
   CreditCard,
   Languages,
-  History
+  History,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
@@ -43,6 +44,9 @@ export default function App() {
   
   // Dialog / Modal toggles
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+
+  // Firestore & configuration errors
+  const [firestoreError, setFirestoreError] = useState<string | null>(null);
 
   // Core records state
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -108,6 +112,7 @@ export default function App() {
   const loadLedgerData = async (userId: string, userEmail?: string | null) => {
     if (!userId) return;
     setDataLoading(true);
+    setFirestoreError(null);
     try {
       const store = getStore(userId, userEmail || undefined);
       const shopList = await store.getShops(userEmail || undefined);
@@ -125,8 +130,14 @@ export default function App() {
       setTransactions(txList);
       setMonthlyLogs(logList);
       setAuditLogs(auditLogList || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error loading ledger data: ", err);
+      const stringifiedErrMsg = err instanceof Error ? err.message : String(err);
+      if (stringifiedErrMsg.includes("Missing or insufficient permissions")) {
+        setFirestoreError("permissions-error");
+      } else {
+        setFirestoreError(stringifiedErrMsg);
+      }
     } finally {
       setDataLoading(false);
     }
@@ -159,10 +170,14 @@ export default function App() {
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      if (isFirebaseActive && auth && auth.currentUser) {
+        await signOut(auth);
+      }
     } catch (err) {
       console.error("SignOut Exception: ", err);
     }
+    setUser(null);
+    localStorage.removeItem('udhar_ledger_auth_user');
   };
 
   // Mutator actions
@@ -678,6 +693,77 @@ export default function App() {
       {/* Main dashboard content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
+        {firestoreError === 'permissions-error' && (
+          <div id="firestore-error-banner" className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-900 shadow-xs max-w-4xl mx-auto">
+            <div className="flex gap-3 items-start">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-3">
+                <h3 className="text-sm font-extrabold text-amber-950">
+                  Firestore Rules Required for Custom Project / మీ కస్టమ్ ప్రాజెక్ట్ కోసం నియమాలను కాన్ఫిగర్ చేయాలి
+                </h3>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Excellent job connecting your custom Firebase project! Because you are hosting this application on your custom setup (such as Vercel), your private Firebase project rejects requests until you apply the custom security policies.
+                </p>
+                <div className="bg-amber-100/60 rounded-xl p-4 space-y-2.5 border border-amber-200 text-xs">
+                  <p className="font-bold text-amber-950">How to authorize secure data collections in your Firebase console:</p>
+                  <ol className="list-decimal pl-5 space-y-1.5 text-amber-900 leading-normal">
+                    <li>
+                      Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="underline font-bold text-emerald-850 hover:text-emerald-950">Firebase Console</a>, open your active project, and click <strong>Firestore Database</strong>.
+                    </li>
+                    <li>
+                      Navigate to the <strong>Rules</strong> tab at the top.
+                    </li>
+                    <li>
+                      Open the file <strong><code>firestore.rules</code></strong> located in the root of this codebase (or copy the pre-packaged security configuration), copy its full contents, then paste them into the code editor in your Firebase Console.
+                    </li>
+                    <li>
+                      Click the <strong>Publish</strong> button on the top right.
+                    </li>
+                    <li>
+                      Ensure <strong>Google</strong> is enabled as an active provider under <strong>Authentication &gt; Sign-in method</strong>.
+                    </li>
+                  </ol>
+                </div>
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    onClick={() => {
+                      if (user) loadLedgerData(user.uid, user.email);
+                    }}
+                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer"
+                  >
+                    Check Connection / కనెక్షన్ ని పరీక్షించు
+                  </button>
+                  <span className="text-[10px] font-mono font-bold text-amber-600">
+                    Logged in as: {user.email}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {firestoreError && firestoreError !== 'permissions-error' && (
+          <div id="firestore-generic-error-banner" className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-900 shadow-xs max-w-4xl mx-auto flex gap-3 items-start">
+            <AlertTriangle className="w-5 h-5 text-red-650 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="text-sm font-extrabold text-red-950">
+                Connection Notice / కనెక్షన్ నోటీసు
+              </h3>
+              <p className="text-xs text-red-800">
+                {String(firestoreError)}
+              </p>
+              <button
+                onClick={() => {
+                  if (user) loadLedgerData(user.uid, user.email);
+                }}
+                className="mt-2 px-3 py-1 bg-red-650 hover:bg-red-700 text-white rounded-md text-[11px] font-bold transition shadow-2xs cursor-pointer"
+              >
+                Retry Request / మళ్ళీ ప్రయత్నించండి
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Tab Selection */}
         {!synchronizedSelectedCustomer && (
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-150 pb-2">
@@ -784,6 +870,7 @@ export default function App() {
                       onAddCustomerClick={() => setShowAddCustomerModal(true)}
                       onUpdateCustomer={handleUpdateCustomerAction}
                       onDeleteCustomer={handleDeleteCustomerAction}
+                      hasShops={shops.length > 0}
                     />
                   )}
 

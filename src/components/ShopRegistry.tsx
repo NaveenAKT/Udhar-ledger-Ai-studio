@@ -590,7 +590,7 @@ export default function ShopRegistry({
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              {t.creatingShopText}
+              {isSubmitting ? t.creatingShopText : (language === 'te' ? 'నమోదు చేయి' : 'Register')}
             </button>
           </div>
         </form>

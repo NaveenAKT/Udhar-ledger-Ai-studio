@@ -16,6 +16,7 @@ interface CustomerDirectoryProps {
   onAddCustomerClick: () => void;
   onUpdateCustomer: (customerId: string, name: string, phone: string, email: string, village?: string, mandal?: string) => Promise<void>;
   onDeleteCustomer: (customerId: string) => Promise<void>;
+  hasShops?: boolean;
 }
 
 export default function CustomerDirectory({
@@ -26,8 +27,9 @@ export default function CustomerDirectory({
   onAddCustomerClick,
   onUpdateCustomer,
   onDeleteCustomer,
+  hasShops = true,
 }: CustomerDirectoryProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   
   // Edit Customer Modal State
@@ -253,14 +255,16 @@ export default function CustomerDirectory({
           </p>
         </div>
         
-        <button
-          id="add-customer-trigger-btn"
-          onClick={onAddCustomerClick}
-          className="self-start sm:self-center bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs group cursor-pointer"
-        >
-          <UserPlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
-          {t.registerCustomerBtn}
-        </button>
+        {hasShops && (
+          <button
+            id="add-customer-trigger-btn"
+            onClick={onAddCustomerClick}
+            className="self-start sm:self-center bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs group cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            {t.registerCustomerBtn}
+          </button>
+        )}
       </div>
 
       {/* Real-time live search filter input */}
@@ -301,12 +305,21 @@ export default function CustomerDirectory({
             }
           </p>
           {!searchQuery && (
-            <button
-              onClick={onAddCustomerClick}
-              className="mt-6 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
-            >
-              {t.addFirstCustomerBtn}
-            </button>
+            hasShops ? (
+              <button
+                onClick={onAddCustomerClick}
+                className="mt-6 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+              >
+                {t.addFirstCustomerBtn}
+              </button>
+            ) : (
+              <p className="mt-6 text-xs text-amber-600 bg-amber-50 rounded-xl p-3 inline-block border border-amber-200 font-bold max-w-sm">
+                ⚠️ {language === 'te' 
+                  ? 'కస్టమర్లను జోడించడానికి మొదట దుకాణాన్ని సృష్టించండి ("దుకాణాల రిజిస్ట్రీ" ట్యాబ్‌కు వెళ్లండి).' 
+                  : 'Please register a shop first under the "Shops Registry" tab to start adding customers.'
+                }
+              </p>
+            )
           )}
         </div>
       ) : (
