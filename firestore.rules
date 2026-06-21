@@ -1,0 +1,222 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn();
+    }
+
+    function isOwner(ownerId) {
+      return isSignedIn() && request.auth.uid == ownerId;
+    }
+
+    function isSuperUser() {
+      return isSignedIn() && request.auth.token.email == "naveenkumar31343@gmail.com";
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function hasShopAccess(shopId) {
+      return isOwner(get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId)
+        || request.auth.uid in get(/databases/$(database)/documents/shops/$(shopId)).data.collaboratorIds
+        || request.auth.token.email in get(/databases/$(database)/documents/shops/$(shopId)).data.collaboratorEmails;
+    }
+
+    // --- Entity Validation Helpers ---
+    function isValidShop(data) {
+      return data.keys().hasAll(['id', 'name', 'phone', 'address', 'ownerId', 'createdAt', 'collaboratorIds', 'collaboratorEmails'])
+        && data.keys().size() == 8
+        && isValidId(data.id)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.phone is string && data.phone.size() <= 30
+        && data.address is string && data.address.size() <= 500
+        && data.ownerId == request.auth.uid
+        && data.createdAt is string && data.createdAt.size() <= 100
+        && data.collaboratorIds is list
+        && data.collaboratorEmails is list;
+    }
+
+    function isValidMerchant(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt'])
+        && data.keys().size() == 5
+        && data.uid == request.auth.uid
+        && (data.email is string || data.email == null)
+        && (data.displayName is string || data.displayName == null)
+        && (data.photoURL is string || data.photoURL == null)
+        && data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
+    // Email is optional (can be blank string)
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['id', 'name', 'phone', 'email', 'ownerId', 'createdAt'])
+        && data.keys().size() >= 6 && data.keys().size() <= 8
+        && isValidId(data.id)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.phone is string && data.phone.size() > 0 && data.phone.size() <= 30
+        && data.email is string && data.email.size() <= 200
+        && data.ownerId == request.auth.uid
+        && data.createdAt is string && data.createdAt.size() <= 100
+        && (!data.keys().hasAny(['village']) || (data.village is string && data.village.size() <= 200))
+        && (!data.keys().hasAny(['mandal']) || (data.mandal is string && data.mandal.size() <= 200));
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['id', 'customerId', 'customerName', 'shopId', 'shopName', 'amount', 'status', 'notes', 'ownerId', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 11
+        && isValidId(data.id)
+        && isValidId(data.customerId)
+        && data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 200
+        && isValidId(data.shopId)
+        && data.shopName is string && data.shopName.size() > 0 && data.shopName.size() <= 200
+        && (data.amount is int || data.amount is float) && data.amount > 0 && data.amount <= 2000
+        && data.status in ['Paid', 'Unpaid']
+        && data.notes is string && data.notes.size() <= 1000
+        && (data.ownerId == request.auth.uid || (resource != null && data.ownerId == resource.data.ownerId))
+        && data.createdAt is string && data.createdAt.size() <= 100
+        && data.updatedAt is string && data.updatedAt.size() <= 100;
+    }
+
+    function isValidMonthlyLog(data) {
+      return data.keys().hasAll(['id', 'runDate', 'compiledLogs', 'ownerId'])
+        && data.keys().size() == 4
+        && isValidId(data.id)
+        && data.compiledLogs is list && data.compiledLogs.size() <= 1000
+        && data.ownerId == request.auth.uid
+        && data.runDate is string && data.runDate.size() <= 100;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['id', 'actionType', 'itemType', 'itemId', 'itemDisplayName', 'details', 'detailsTe', 'performedByEmail', 'performedByName', 'performedByUid', 'createdAt'])
+        && data.keys().size() == 11
+        && isValidId(data.id)
+        && data.actionType in ['CREATE_TX', 'UPDATE_TX', 'DELETE_TX', 'CREATE_CUSTOMER', 'UPDATE_CUSTOMER', 'DELETE_CUSTOMER', 'CREATE_SHOP', 'UPDATE_SHOP', 'DELETE_SHOP', 'COLLABORATOR_CHANGE']
+        && data.itemType in ['Transaction', 'Customer', 'Shop']
+        && isValidId(data.itemId)
+        && data.itemDisplayName is string && data.itemDisplayName.size() <= 200
+        && data.details is string && data.details.size() <= 2000
+        && data.detailsTe is string && data.detailsTe.size() <= 2000
+        && data.performedByEmail is string && data.performedByEmail.size() <= 200
+        && data.performedByName is string && data.performedByName.size() <= 200
+        && data.performedByUid == request.auth.uid
+        && data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
+    // --- Path Match Blocks ---
+    match /merchants/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSuperUser() || (isVerifiedUser() && request.auth.uid == userId && isValidMerchant(incoming()));
+      allow update: if isSuperUser() || (isVerifiedUser() && request.auth.uid == userId && isValidMerchant(incoming()));
+      allow delete: if isSuperUser() || (isVerifiedUser() && request.auth.uid == userId);
+    }
+
+    match /shops/{shopId} {
+      allow get: if isSuperUser()
+        || isOwner(existing().ownerId) 
+        || request.auth.uid in existing().collaboratorIds 
+        || request.auth.token.email in existing().collaboratorEmails;
+        
+      allow list: if isSuperUser() || (isSignedIn() && (
+        resource.data.ownerId == request.auth.uid
+        || request.auth.uid in resource.data.collaboratorIds
+        || request.auth.token.email in resource.data.collaboratorEmails
+      ));
+      
+      allow create: if isSuperUser() || (isVerifiedUser() 
+        && isValidId(shopId) 
+        && isValidShop(incoming()));
+        
+      allow update: if isSuperUser() || (isVerifiedUser()
+        && isValidId(shopId)
+        && isValidShop(incoming())
+        && isOwner(existing().ownerId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt);
+        
+      allow delete: if isSuperUser() || (isVerifiedUser() && isOwner(existing().ownerId));
+    }
+
+    match /customers/{customerId} {
+      allow read: if isSuperUser() || isVerifiedUser();
+      
+      allow create: if isSuperUser() || (isVerifiedUser()
+        && isValidId(customerId)
+        && isValidCustomer(incoming()));
+        
+      allow update: if isSuperUser() || (isVerifiedUser()
+        && isValidId(customerId)
+        && isValidCustomer(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt);
+        
+      allow delete: if isSuperUser() || (isVerifiedUser() && isOwner(existing().ownerId));
+    }
+
+    match /transactions/{transactionId} {
+      allow get: if isSuperUser() || isVerifiedUser();
+      allow list: if isSuperUser() || (isSignedIn() && isVerifiedUser());
+      
+      allow create: if isSuperUser() || (isVerifiedUser()
+        && isValidId(transactionId)
+        && isValidTransaction(incoming())
+        && hasShopAccess(incoming().shopId));
+        
+      allow update: if isSuperUser() || (isVerifiedUser()
+        && isValidId(transactionId)
+        && isValidTransaction(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && hasShopAccess(incoming().shopId));
+        
+      allow delete: if isSuperUser() || (isVerifiedUser() && (isOwner(existing().ownerId) || hasShopAccess(existing().shopId)));
+    }
+
+    match /monthly_logs/{logId} {
+      allow get: if isSuperUser() || isOwner(existing().ownerId);
+      allow list: if isSuperUser() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      
+      allow create: if isSuperUser() || (isVerifiedUser()
+        && isValidId(logId)
+        && isValidMonthlyLog(incoming()));
+        
+      allow update: if isSuperUser() || (isVerifiedUser()
+        && isValidId(logId)
+        && isValidMonthlyLog(incoming())
+        && incoming().ownerId == existing().ownerId);
+        
+      allow delete: if isSuperUser() || (isVerifiedUser() && isOwner(existing().ownerId));
+    }
+
+    match /audit_logs/{logId} {
+      allow get: if isSuperUser() || isVerifiedUser();
+      allow list: if isSuperUser() || (isSignedIn() && isVerifiedUser());
+      
+      allow create: if isSuperUser() || (isVerifiedUser()
+        && isValidId(logId)
+        && isValidAuditLog(incoming()));
+        
+      allow update: if false;
+      allow delete: if isSuperUser();
+    }
+  }
+}

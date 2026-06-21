@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "Shop": {
+      "title": "Shop",
+      "description": "A merchant's registered store/location under the Udhar Book ledger",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the shop" },
+        "name": { "type": "string", "description": "Name of the shop" },
+        "phone": { "type": "string", "description": "Shop contact phone number" },
+        "address": { "type": "string", "description": "Shop physical address" },
+        "ownerId": { "type": "string", "description": "User UID of the merchant owner" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of creation" },
+        "collaboratorIds": { "type": "array", "description": "List of collaborator merchant UIDs" },
+        "collaboratorEmails": { "type": "array", "description": "List of collaborator merchant emails" }
+      },
+      "required": ["id", "name", "ownerId", "createdAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "A borrower/customer record associated with the ledger owner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the customer" },
+        "name": { "type": "string", "description": "Name of the customer" },
+        "phone": { "type": "string", "description": "Phone number of the customer" },
+        "email": { "type": "string", "description": "Optional email address" },
+        "ownerId": { "type": "string", "description": "User UID of the merchant owner" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of creation" }
+      },
+      "required": ["id", "name", "phone", "ownerId", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A historic debt or payment entry linked to a customer and shop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the transaction" },
+        "customerId": { "type": "string", "description": "Associated customer ID" },
+        "customerName": { "type": "string", "description": "Cached name of the customer" },
+        "shopId": { "type": "string", "description": "Associated shop ID" },
+        "shopName": { "type": "string", "description": "Cached name of the shop" },
+        "amount": { "type": "number", "description": "Debt or payment amount" },
+        "status": { "type": "string", "enum": ["Paid", "Unpaid"], "description": "Status of the debt entry" },
+        "notes": { "type": "string", "description": "Additional notes/comments" },
+        "ownerId": { "type": "string", "description": "User UID of the merchant owner" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update server timestamp" }
+      },
+      "required": ["id", "customerId", "customerName", "shopId", "shopName", "amount", "status", "ownerId", "createdAt", "updatedAt"]
+    },
+    "MonthlyLog": {
+      "title": "MonthlyLog",
+      "description": "Centralized log of compiled monthly summaries sent to SMS queues",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique log ID" },
+        "runDate": { "type": "string", "format": "date-time", "description": "Timestamp when automation ran" },
+        "compiledLogs": { "type": "array", "description": "Compiled summary logs for customers" },
+        "ownerId": { "type": "string", "description": "User UID of the merchant owner" }
+      },
+      "required": ["id", "runDate", "compiledLogs", "ownerId"]
+    },
+    "Merchant": {
+      "title": "Merchant",
+      "description": "A registered merchant user who logs in to manage credits",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique auth UID of the merchant" },
+        "email": { "type": "string", "description": "Email address of the merchant" },
+        "displayName": { "type": "string", "description": "Display name of the merchant" },
+        "photoURL": { "type": "string", "description": "Avatar URL of the merchant" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Signup/first login timestamp" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Durable and immutable audit log of operations performed in the ledger",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique audit log entry ID" },
+        "actionType": { "type": "string", "description": "Type of action performed" },
+        "itemType": { "type": "string", "description": "Type of item acted upon" },
+        "itemId": { "type": "string", "description": "ID of the target item" },
+        "itemDisplayName": { "type": "string", "description": "Display name of the target item" },
+        "details": { "type": "string", "description": "Description of the operation" },
+        "detailsTe": { "type": "string", "description": "Telugu description of the operation" },
+        "performedByEmail": { "type": "string", "description": "Email of user executing the action" },
+        "performedByName": { "type": "string", "description": "Display name of user executing the action" },
+        "performedByUid": { "type": "string", "description": "User UID executing the action" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Action timestamp" }
+      },
+      "required": ["id", "actionType", "itemType", "itemId", "itemDisplayName", "details", "detailsTe", "performedByEmail", "performedByName", "performedByUid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/merchants/{userId}": {
+      "schema": "Merchant",
+      "description": "Registered merchant users"
+    },
+    "/shops/{shopId}": {
+      "schema": "Shop",
+      "description": "Merchant locations"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Ledger customers"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Debt transactions"
+    },
+    "/monthly_logs/{logId}": {
+      "schema": "MonthlyLog",
+      "description": "Monthly compiled ledger summaries"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Logged system actions and audit history"
+    }
+  }
+}

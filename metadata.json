@@ -1,0 +1,6 @@
+{
+  "name": "Udhar",
+  "description": "A customer-centric digital credit book and debt ledger with real-time searches, multi-shop registry support, transaction profile logging, strict merchant safety guards, and background SMS summary simulator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

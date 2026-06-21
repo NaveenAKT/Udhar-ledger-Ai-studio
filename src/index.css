@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  
+  /* Natural Tones Core Palette */
+  --color-warm-gray: #f3f4f1;
+  --color-off-white: #fcfcf9;
+  
+  /* Override default Tailwind grays to adopt warm, premium natural tone equivalents */
+  --color-gray-50: #fcfcf9;
+  --color-gray-100: #e5e7eb;
+  --color-gray-150: #e2e8f0;
+  --color-gray-200: #cbd5e1;
+  --color-gray-605: #4b5563;
+  --color-gray-805: #1f2937;
+  
+  /* Natural Tones Emerald Theme */
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-600: #059669;
+  --color-emerald-650: #059669;
+  --color-emerald-700: #047857;
+  --color-emerald-750: #047857;
+  
+  /* Natural Tones Slate Palette */
+  --color-slate-900: #0f172a;
+  --color-slate-905: #0f172a;
+  --color-slate-705: #334155;
+  --color-slate-600: #475569;
+  --color-slate-450: #64748b;
+  --color-slate-400: #94a3b8;
+
+  /* Custom Red Palette */
+  --color-red-650: #dc2626;
+  --color-red-750: #b91c1c;
+
+  /* Custom Blue Palette */
+  --color-blue-500: #3b82f6;
+  --color-blue-650: #2563eb;
+  --color-blue-805: #1d4ed8;
+
+  /* Custom Orange Palette */
+  --color-orange-650: #ea580c;
+  --color-orange-750: #c2410c;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-warm-gray);
+  color: var(--color-slate-900);
+}
