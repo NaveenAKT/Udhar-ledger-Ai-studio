@@ -669,15 +669,29 @@ export default function CustomerProfile({
                         </div>
                       </td>
                       <td className="px-6 py-4 font-mono font-extrabold whitespace-nowrap">
-                        <span className={isUnpaid ? 'text-red-650' : 'text-emerald-650'}>
-                          ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
+                        {tx.amount < 0 ? (
+                          <span className="text-blue-650">
+                            - ₹{Math.abs(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        ) : (
+                          <span className={isUnpaid ? 'text-red-650' : 'text-emerald-650'}>
+                            ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black leading-none uppercase ${
-                          isUnpaid ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          tx.amount < 0
+                            ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                            : isUnpaid
+                              ? 'bg-red-50 text-red-700 border border-red-100'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                         }`}>
-                          {isUnpaid ? 'Unpaid' : 'Settled'}
+                          {tx.amount < 0
+                            ? (language === 'te' ? 'జమ (Payment)' : 'Payment')
+                            : isUnpaid
+                              ? 'Unpaid'
+                              : 'Settled'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right whitespace-nowrap">

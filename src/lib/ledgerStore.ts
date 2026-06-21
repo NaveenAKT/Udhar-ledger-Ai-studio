@@ -271,7 +271,7 @@ export class FirebaseLedgerStore implements LedgerStore {
   constructor(userId: string, userEmail?: string) {
     this.userId = userId;
     this.userEmail = userEmail;
-    this.isSuperUser = userEmail === 'naveenkumar31343@gmail.com' || auth?.currentUser?.email === 'naveenkumar31343@gmail.com';
+    this.isSuperUser = userEmail === 'naveenkumar31343@gmail.com' || userEmail === 'akuthota.rajkumar@gmail.com' || auth?.currentUser?.email === 'naveenkumar31343@gmail.com' || auth?.currentUser?.email === 'akuthota.rajkumar@gmail.com';
   }
 
   // Merchants / Users
@@ -303,7 +303,7 @@ export class FirebaseLedgerStore implements LedgerStore {
       const map = new Map<string, Shop>();
       
       const emailToCheck = userEmail || this.userEmail || auth?.currentUser?.email;
-      const isSuper = emailToCheck === 'naveenkumar31343@gmail.com' || this.isSuperUser;
+      const isSuper = emailToCheck === 'naveenkumar31343@gmail.com' || emailToCheck === 'akuthota.rajkumar@gmail.com' || this.isSuperUser;
 
       if (isSuper) {
         const snapAll = await getDocs(collection(db, 'shops'));
@@ -543,7 +543,7 @@ export class FirebaseLedgerStore implements LedgerStore {
   // Logs
   async getMonthlyLogs(): Promise<MonthlyLog[]> {
     try {
-      const isSuper = this.isSuperUser || auth?.currentUser?.email === 'naveenkumar31343@gmail.com';
+      const isSuper = this.isSuperUser || auth?.currentUser?.email === 'naveenkumar31343@gmail.com' || auth?.currentUser?.email === 'akuthota.rajkumar@gmail.com';
 
       if (isSuper) {
         const snap = await getDocs(collection(db, 'monthly_logs'));
@@ -615,7 +615,7 @@ export class FirebaseLedgerStore implements LedgerStore {
   async clearAllDatabaseData(): Promise<void> {
     try {
       const emailToCheck = this.userEmail || auth?.currentUser?.email;
-      const isSuper = emailToCheck === 'naveenkumar31343@gmail.com' || this.isSuperUser;
+      const isSuper = emailToCheck === 'naveenkumar31343@gmail.com' || emailToCheck === 'akuthota.rajkumar@gmail.com' || this.isSuperUser;
 
       if (isSuper) {
         // Superuser deletes EVERYTHING in all collections

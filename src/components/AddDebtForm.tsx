@@ -16,14 +16,14 @@ interface AddDebtFormProps {
 }
 
 export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDebtFormProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [selectedShopId, setSelectedShopId] = useState<string>(shops[0]?.id || '');
   const [amountInput, setAmountInput] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [txType, setTxType] = useState<'due' | 'payment'>('due');
   
   // Safety check states
   const [hasAmountError, setHasAmountError] = useState(false);
-  const [showLimitAlert, setShowLimitAlert] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -35,7 +35,9 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
     setHasAmountError(false);
 
     if (!selectedShopId) {
-      alert("దయచేసి మొదటగా ఒక దుకాణాన్ని సృష్టించండి లేదా ఎంచుకోండి.");
+      alert(language === 'te' 
+        ? "దయచేసి మొదట ఒక దుకాణాన్ని క్రియేట్ చేయండి లేదా ఎంచుకోండి." 
+        : "Please register or select a shop first.");
       return;
     }
 
@@ -45,25 +47,26 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
       return;
     }
 
-    // 1. MAXIMUM THRESHOLD GUARD
-    if (parsedAmount > 150000) {
-      setHasAmountError(true);
-      setShowLimitAlert(true);
-      return;
-    }
-
-    // 2. TRIGGER CONFIRMATION MODAL
+    // TRIGGER CONFIRMATION MODAL
     setShowConfirmModal(true);
   };
 
   const handleConfirmTransaction = async () => {
     if (isSaving) return;
     
-    // 3. DOUBLE-CLICK BLOCKER
     setIsSaving(true);
     try {
       if (selectedShop) {
-        await onSave(selectedShop.id, selectedShop.name, parseFloat(amountInput), notes);
+        const rawAmount = parseFloat(amountInput);
+        const finalAmount = txType === 'due' ? rawAmount : -rawAmount;
+        
+        // Prep notes prefix for clarity
+        const rawNotes = notes.trim();
+        const finalNotes = txType === 'payment'
+          ? (rawNotes ? (language === 'te' ? `[జమ / బకాయి చెల్లింపు] ${rawNotes}` : `[Clearing Debt] ${rawNotes}`) : (language === 'te' ? '[జమ / బకాయి చెల్లింపు]' : '[Clearing Debt]'))
+          : rawNotes;
+
+        await onSave(selectedShop.id, selectedShop.name, finalAmount, finalNotes);
         setShowConfirmModal(false);
         onClose();
       }
@@ -76,47 +79,75 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
 
   return (
     <div id="add-debt-form-container" className="space-y-4 text-slate-800">
-      {/* Maximum Threshold Alert (Custom Overlay Modal to prevent iframe blocking) */}
-      {showLimitAlert && (
-        <div id="limit-alert-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[90]">
-          <div id="limit-alert-card" className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 border-l-4 border-red-500 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-red-50 rounded-full text-red-600">
-                <AlertCircle className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-gray-900">{t.limitBlockedTitle}</h3>
-                <p className="text-sm text-gray-600 mt-2 font-medium">
-                  {t.limitBlockedDesc}
-                </p>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end">
-              <button
-                id="close-limit-alert-btn"
-                type="button"
-                onClick={() => setShowLimitAlert(false)}
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-semibold transition"
-              >
-                {t.acknowledgeBtn}
-              </button>
-            </div>
-          </div>
+      {/* Dynamic Segment Toggle for Transaction Type */}
+      <div>
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+          {language === 'te' ? 'లావాదేవీ రకం (Transaction Type)' : 'Transaction Type'}
+        </label>
+        <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-xl border border-gray-200">
+          <button
+            type="button"
+            onClick={() => setTxType('due')}
+            className={`py-2 text-xs font-extrabold rounded-lg transition-all ${
+              txType === 'due'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            {language === 'te' ? 'అప్పు నమోదు (Add Debt)' : 'Add Debt'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTxType('payment')}
+            className={`py-2 text-xs font-extrabold rounded-lg transition-all ${
+              txType === 'payment'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            {language === 'te' ? 'జమ / చెల్లింపు (Clearing Debt)' : 'Clearing Debt'}
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Confirmation Modal Overlay */}
       {showConfirmModal && selectedShop && (
         <div id="confirm-modal-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[80]">
           <div id="confirm-modal-card" className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-gray-100 animate-in fade-in zoom-in duration-200">
             <h3 className="text-lg font-bold text-gray-900 border-b pb-3 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              కాలానుగుణ బకాయి రికార్డ్ వెరిఫికేషన్
+              <span className={`w-2.5 h-2.5 rounded-full ${txType === 'due' ? 'bg-emerald-500' : 'bg-blue-500'}`}></span>
+              {language === 'te' ? 'రికార్డు నిర్ధారణ' : 'Record Verification'}
             </h3>
             
-            <div className="my-5 p-4 bg-emerald-50/50 border border-emerald-100 rounded-lg">
-              <p className="text-gray-800 text-base leading-relaxed">
-                లావాదేవీ ధృవీకరణ: <strong className="text-emerald-950 font-extrabold text-base">మీరు ఖచ్చితంగా ₹{parseFloat(amountInput).toLocaleString('en-IN', { minimumFractionDigits: 2 })} బకాయి మొత్తాన్ని కస్టమర్ {customer.name} ఖాతాలో {selectedShop.name} వద్ద నమోదు చేయాలనుకుంటున్నారా?</strong>
+            {/* BIG NUMBER WARNING BANNER */}
+            {parseFloat(amountInput) > 150000 && (
+              <div className="my-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs font-bold leading-relaxed flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="font-extrabold">
+                    {language === 'te' 
+                      ? '⚠️ మీరు పెద్ద మొత్తాన్ని నమోదు చేస్తున్నారు, ఇది సరైనదేనా?' 
+                      : '⚠️ You are entering a big number. Are you sure this is correct?'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="my-4 p-4 bg-slate-50/50 border border-gray-150 rounded-lg">
+              <p className="text-gray-800 text-sm leading-relaxed">
+                {language === 'te' ? (
+                  <>
+                    లావాదేవీ ధృవీకరణ: <strong className="text-slate-905 font-extrabold text-sm">
+                      మీరు ఖచ్చితంగా ₹{parseFloat(amountInput).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {txType === 'due' ? 'బకాయి మొత్తాన్ని' : 'జమ మొత్తాన్ని (చెల్లింపు)'} కస్టమర్ {customer.name} ఖాతాలో {selectedShop.name} వద్ద నమోదు చేయాలనుకుంటున్నారా?
+                    </strong>
+                  </>
+                ) : (
+                  <>
+                    Transaction Verification: <strong className="text-slate-905 font-extrabold text-sm">
+                      Are you sure you want to log ₹{parseFloat(amountInput).toLocaleString('en-IN', { minimumFractionDigits: 2 })} as {txType === 'due' ? 'outstanding debt' : 'payment received (clearing debt)'} for customer {customer.name} at {selectedShop.name}?
+                    </strong>
+                  </>
+                )}
               </p>
             </div>
 
@@ -135,15 +166,17 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
                 type="button"
                 disabled={isSaving}
                 onClick={handleConfirmTransaction}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`px-4 py-2 text-white rounded-lg text-sm font-semibold transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  txType === 'due' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    నమోదు చేయబడుతోంది...
+                    {language === 'te' ? 'నమోదు చేయబడుతోంది...' : 'Saving...'}
                   </>
                 ) : (
-                  'ధృవీకరించి సేవ్ చేయి'
+                  language === 'te' ? 'జమ చేయి' : 'Confirm & Save'
                 )}
               </button>
             </div>
@@ -159,7 +192,9 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
           </label>
           {shops.length === 0 ? (
             <div className="p-3 bg-amber-50 text-amber-800 rounded-lg text-sm border border-amber-200">
-              ఎలాంటి రిజిస్టర్డ్ దుకాణాలు అందుబాటులో లేవు. దయచేసి మునుముందుగా 'దుకాణాల నమోదు (Shops)' ట్యాబ్‌లో దుకాణాన్ని క్రియేట్ చేయండి.
+              {language === 'te' 
+                ? 'ఎలాంటి రిజిస్టర్డ్ దుకాణాలు అందుబాటులో లేవు. దయచేసి మొదట మీ దుకాణాన్ని రిజిస్టర్ చేయండి.' 
+                : 'No shops registered. Please register a shop first.'}
             </div>
           ) : (
             <select
@@ -179,7 +214,9 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
 
         <div>
           <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-            {t.addDebtAmountLabel}
+            {txType === 'due' 
+              ? (language === 'te' ? 'బకాయి పెరిగే అప్పు మొత్తం (₹) *' : 'Debt Outstanding Amount (₹) *') 
+              : (language === 'te' ? 'జమ చేయాల్సిన చెల్లింపు మొత్తం (₹) *' : 'Payment Clearing Amount (₹) *')}
           </label>
           <div className="relative">
             <span className="absolute left-3 top-2 text-gray-400 font-semibold text-sm">₹</span>
@@ -199,26 +236,28 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
               }`}
             />
           </div>
-          {hasAmountError && parseFloat(amountInput) > 150000 && (
-            <p className="text-xs text-red-500 mt-1 font-semibold flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> పరిమితి ₹1,50,000 కంటే ఎక్కువ ఉండకూడదు.
-            </p>
-          )}
           {hasAmountError && (parseFloat(amountInput) <= 0 || isNaN(parseFloat(amountInput))) && (
             <p className="text-xs text-red-500 mt-1 font-semibold flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> దయచేసి సరైన క్రెడిట్ మొత్తాన్ని నమోదు చేయండి.
+              <AlertCircle className="w-3 h-3" /> 
+              {language === 'te' 
+                ? 'దయచేసి సరైన క్రెడిట్ మొత్తాన్ని నమోదు చేయండి.' 
+                : 'Please enter a valid credit amount.'}
             </p>
           )}
         </div>
 
         <div>
           <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-            {t.addDebtNotesLabel} (ఐచ్ఛికం)
+            {txType === 'due' 
+              ? (language === 'te' ? 'వివరాలు / సామాన్ల వివరాలు' : 'Comments / Itemized List')
+              : (language === 'te' ? 'చెల్లింపు వివరాలు (ఆప్షనల్)' : 'Payment Notes (Optional)')}
           </label>
           <textarea
             id="debt-notes-textarea"
             rows={3}
-            placeholder={t.addDebtNotesPlaceholder}
+            placeholder={txType === 'due' 
+              ? (language === 'te' ? 'కొనుగోలు చేసిన సామాన్లు, ఉదా. బియ్యం, పప్పు' : 'What was purchased on credit? e.g. Rice, Oil')
+              : (language === 'te' ? 'కూలీ జమ, నగదు, గూగుల్ పే వగైరా' : 'e.g. Google Pay, Cash, partial clearance')}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-800 font-medium"
@@ -238,9 +277,13 @@ export default function AddDebtForm({ customer, shops, onSave, onClose }: AddDeb
             id="save-debt-form-btn"
             type="submit"
             disabled={shops.length === 0}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm transition flex items-center gap-2 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer"
+            className={`px-4 py-2 text-white font-semibold rounded-lg text-sm transition flex items-center gap-2 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer shadow-xs ${
+              txType === 'due' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
           >
-            {t.logDebtBtn}
+            {txType === 'due' 
+              ? (language === 'te' ? 'బకాయి సృష్టించు' : 'Create Entry') 
+              : (language === 'te' ? 'జమ నమోదు చేయి' : 'Settle Amount')}
           </button>
         </div>
       </form>

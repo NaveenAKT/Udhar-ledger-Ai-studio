@@ -17,6 +17,7 @@ interface CustomerDirectoryProps {
   onUpdateCustomer: (customerId: string, name: string, phone: string, email: string, village?: string, mandal?: string) => Promise<void>;
   onDeleteCustomer: (customerId: string) => Promise<void>;
   hasShops?: boolean;
+  onGoToAddShop?: () => void;
 }
 
 export default function CustomerDirectory({
@@ -28,6 +29,7 @@ export default function CustomerDirectory({
   onUpdateCustomer,
   onDeleteCustomer,
   hasShops = true,
+  onGoToAddShop,
 }: CustomerDirectoryProps) {
   const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,7 +44,7 @@ export default function CustomerDirectory({
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
 
-  const isSuperUser = currentUser?.email === 'naveenkumar31343@gmail.com';
+  const isSuperUser = currentUser?.email === 'naveenkumar31343@gmail.com' || currentUser?.email === 'akuthota.rajkumar@gmail.com';
 
   // Pre-calculate statistics for each customer to show on card
   const customerStats = useMemo(() => {
@@ -100,7 +102,18 @@ export default function CustomerDirectory({
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingCustomer || !editName.trim() || !editPhone.trim()) return;
+    if (!editingCustomer || !editName.trim()) return;
+
+    if (!editPhone.trim()) {
+      setEditError(language === 'te' ? 'మొబైల్ సంఖ్య తప్పనిసరి!' : 'Mobile number is mandatory!');
+      return;
+    }
+
+    const phoneClean = editPhone.trim().replace(/\D/g, '');
+    if (phoneClean.length !== 10) {
+      setEditError(language === 'te' ? 'మొబైల్ ఫోన్ నంబర్ ఖచ్చితంగా 10 అంకెలు మాత్రమే ఉండాలి!' : 'Phone number must be exactly 10 digits!');
+      return;
+    }
 
     setIsSavingEdit(true);
     setEditError('');
@@ -108,7 +121,7 @@ export default function CustomerDirectory({
       await onUpdateCustomer(
         editingCustomer.id, 
         editName.trim(), 
-        editPhone.trim(), 
+        phoneClean, 
         editEmail.trim(), 
         editVillage.trim(), 
         editMandal.trim()
@@ -255,7 +268,7 @@ export default function CustomerDirectory({
           </p>
         </div>
         
-        {hasShops && (
+        {hasShops ? (
           <button
             id="add-customer-trigger-btn"
             onClick={onAddCustomerClick}
@@ -263,6 +276,15 @@ export default function CustomerDirectory({
           >
             <UserPlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
             {t.registerCustomerBtn}
+          </button>
+        ) : (
+          <button
+            id="add-shop-trigger-from-cust-btn"
+            onClick={onGoToAddShop}
+            className="self-start sm:self-center bg-amber-655 hover:bg-amber-700 bg-amber-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs group cursor-pointer"
+          >
+            <Store className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            {language === 'te' ? 'దుకాణాన్ని జోడించు (Add Shop)' : 'Add Shop'}
           </button>
         )}
       </div>
@@ -313,12 +335,22 @@ export default function CustomerDirectory({
                 {t.addFirstCustomerBtn}
               </button>
             ) : (
-              <p className="mt-6 text-xs text-amber-600 bg-amber-50 rounded-xl p-3 inline-block border border-amber-200 font-bold max-w-sm">
-                ⚠️ {language === 'te' 
-                  ? 'కస్టమర్లను జోడించడానికి మొదట దుకాణాన్ని సృష్టించండి ("దుకాణాల రిజిస్ట్రీ" ట్యాబ్‌కు వెళ్లండి).' 
-                  : 'Please register a shop first under the "Shops Registry" tab to start adding customers.'
-                }
-              </p>
+              <div className="mt-6 flex flex-col items-center gap-3">
+                <p className="text-xs text-amber-600 bg-amber-50 rounded-xl p-3 inline-block border border-amber-200 font-bold max-w-sm">
+                  ⚠️ {language === 'te' 
+                    ? 'కస్టమర్లను జోడించడానికి మొదట దుకాణాన్ని సృష్టించండి ("దుకాణాల రిజిస్ట్రీ" ట్యాబ్‌కు వెళ్లండి).' 
+                    : 'Please register a shop first under the "Shops Registry" tab to start adding customers.'
+                  }
+                </p>
+                <button
+                  type="button"
+                  onClick={onGoToAddShop}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                >
+                  <Store className="w-4 h-4" />
+                  {language === 'te' ? 'దుకాణాన్ని జోడించు (Add Shop)' : 'Add Shop'}
+                </button>
+              </div>
             )
           )}
         </div>

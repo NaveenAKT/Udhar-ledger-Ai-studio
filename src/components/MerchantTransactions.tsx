@@ -106,7 +106,14 @@ export default function MerchantTransactions({
     }));
   };
 
-  const isSuperUser = currentUser?.email === 'naveenkumar31343@gmail.com';
+  const isSuperUser = currentUser?.email === 'naveenkumar31343@gmail.com' || currentUser?.email === 'akuthota.rajkumar@gmail.com';
+
+  // Only show transactions of shops the user has access to, except for super users
+  const accessibleTransactions = useMemo(() => {
+    if (isSuperUser) return transactions;
+    const myShopIds = new Set(shops.map(s => s.id));
+    return transactions.filter(tx => myShopIds.has(tx.shopId));
+  }, [transactions, shops, isSuperUser]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -123,7 +130,7 @@ export default function MerchantTransactions({
     let paidSum = 0;
     
     // Filter transactions relevant to shop access
-    transactions.forEach(tx => {
+    accessibleTransactions.forEach(tx => {
       if (tx.status === 'Unpaid') {
         unpaidSum += tx.amount;
       } else {
@@ -134,13 +141,13 @@ export default function MerchantTransactions({
     return {
       unpaid: unpaidSum,
       paid: paidSum,
-      totalCount: transactions.length
+      totalCount: accessibleTransactions.length
     };
-  }, [transactions]);
+  }, [accessibleTransactions]);
 
   // Apply filters and sorting
   const filteredAndSortedTx = useMemo(() => {
-    let result = [...transactions];
+    let result = [...accessibleTransactions];
 
     // 1. Shop filter
     if (selectedShopId !== 'all') {
@@ -179,7 +186,7 @@ export default function MerchantTransactions({
     });
 
     return result;
-  }, [transactions, selectedShopId, selectedStatus, searchQuery, sortField, sortOrder]);
+  }, [accessibleTransactions, selectedShopId, selectedStatus, searchQuery, sortField, sortOrder]);
 
   // Filter and prepare audit logs
   const filteredAuditLogs = useMemo(() => {
@@ -603,15 +610,29 @@ export default function MerchantTransactions({
                             </div>
                           </td>
                           <td className="px-6 py-4 font-mono font-extrabold text-right whitespace-nowrap cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
-                            <span className={isUnpaid ? 'text-red-650' : 'text-emerald-650'}>
-                              ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
+                            {tx.amount < 0 ? (
+                              <span className="text-blue-650">
+                                - ₹{Math.abs(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            ) : (
+                              <span className={isUnpaid ? 'text-red-650' : 'text-emerald-650'}>
+                                ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-center whitespace-nowrap cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black leading-none uppercase ${
-                              isUnpaid ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                              tx.amount < 0
+                                ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                : isUnpaid
+                                  ? 'bg-red-50 text-red-700 border border-red-100'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                             }`}>
-                              {isUnpaid ? 'Unpaid' : 'Settled'}
+                              {tx.amount < 0
+                                ? (language === 'te' ? 'జమ (payment)' : 'Payment')
+                                : isUnpaid
+                                  ? 'Unpaid'
+                                  : 'Settled'}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
@@ -871,7 +892,7 @@ export default function MerchantTransactions({
       {/* TRANSACTION CHANGE HISTORY AUDIT MODAL overlay */}
       {inspectingTxId && (() => {
         const txLogs = auditLogs.filter(log => log.itemType === 'Transaction' && log.itemId === inspectingTxId);
-        const relativeTx = transactions.find(t => t.id === inspectingTxId);
+        const relativeTx = accessibleTransactions.find(t => t.id === inspectingTxId);
         return (
           <div id="tx-history-modal-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[90] animate-in fade-in duration-200">
             <div id="tx-history-modal-card" className="bg-white rounded-3xl shadow-xl max-w-2xl w-full p-6 border border-gray-150 animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">

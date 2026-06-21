@@ -8,6 +8,7 @@ export interface Shop {
   name: string;
   phone: string;
   address: string;
+  gstNumber?: string;
   ownerId: string;
   createdAt: string; // ISO string or Firestore raw sequence
   collaboratorIds?: string[];

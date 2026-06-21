@@ -33,13 +33,15 @@ interface ShopRegistryProps {
   shops: Shop[];
   transactions: Transaction[];
   auditLogs: AuditLogEntry[];
-  onAddShop: (name: string, phone: string, address: string) => Promise<void>;
+  onAddShop: (name: string, phone: string, address: string, gstNumber: string) => Promise<void>;
   onUpdateShop: (shopId: string, name: string, phone: string, address: string) => Promise<void>;
   onDeleteShop: (shopId: string) => Promise<void>;
   currentUserId: string;
   currentUserEmail?: string;
   onUpdateShopCollaborators?: (shopId: string, emails: string[], uids: string[]) => Promise<void>;
   onGetMerchantByEmail?: (email: string) => Promise<{ uid: string; email: string | null; displayName: string | null } | null>;
+  autoOpenAddForm?: boolean;
+  onAddFormOpened?: () => void;
 }
 
 export default function ShopRegistry({
@@ -53,6 +55,8 @@ export default function ShopRegistry({
   currentUserEmail,
   onUpdateShopCollaborators,
   onGetMerchantByEmail,
+  autoOpenAddForm,
+  onAddFormOpened,
 }: ShopRegistryProps) {
   const { t, language } = useLanguage();
   const [selectedShopTxId, setSelectedShopTxId] = useState<string | null>(null);
@@ -61,10 +65,19 @@ export default function ShopRegistry({
 
   // Add Shop states
   const [showAddForm, setShowAddForm] = useState(false);
+
+  React.useEffect(() => {
+    if (autoOpenAddForm) {
+      setShowAddForm(true);
+      onAddFormOpened?.();
+    }
+  }, [autoOpenAddForm, onAddFormOpened]);
   const [newShopName, setNewShopName] = useState('');
   const [newShopPhone, setNewShopPhone] = useState('');
   const [newShopAddress, setNewShopAddress] = useState('');
+  const [newShopGst, setNewShopGst] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [shopError, setShopError] = useState('');
 
   // Edit Shop states
   const [editingShop, setEditingShop] = useState<Shop | null>(null);
@@ -99,7 +112,7 @@ export default function ShopRegistry({
     currentUids: string[];
   } | null>(null);
 
-  const isSuperUser = currentUserEmail === 'naveenkumar31343@gmail.com';
+  const isSuperUser = currentUserEmail === 'naveenkumar31343@gmail.com' || currentUserEmail === 'akuthota.rajkumar@gmail.com';
 
   // Compute stats for each shop
   const shopStats = useMemo(() => {
@@ -134,17 +147,36 @@ export default function ShopRegistry({
 
   const handleCreateShop = async (e: React.FormEvent) => {
     e.preventDefault();
+    setShopError('');
     if (!newShopName.trim()) return;
+
+    if (!isSuperUser) {
+      setShopError(language === 'te' ? 'వ్యాపారిని సృష్టించడానికి సూపర్ యూజర్ అనుమతి మాత్రమే అవసరం.' : 'Only super users are authorized to register merchants.');
+      return;
+    }
+
+    if (!newShopGst.trim()) {
+      setShopError(language === 'te' ? 'GST నంబర్ తప్పనిసరిగా నమోదు చేయాలి!' : 'GST number is mandatory!');
+      return;
+    }
+
+    const phoneClean = newShopPhone.trim().replace(/\D/g, '');
+    if (phoneClean.length !== 10) {
+      setShopError(language === 'te' ? 'మొబైల్ ఫోన్ నంబర్ ఖచ్చితంగా 10 అంకెలు మాత్రమే ఉండాలి!' : 'Phone number must be exactly 10 digits!');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      await onAddShop(newShopName.trim(), newShopPhone.trim(), newShopAddress.trim());
+      await onAddShop(newShopName.trim(), phoneClean, newShopAddress.trim(), newShopGst.trim());
       setNewShopName('');
       setNewShopPhone('');
       setNewShopAddress('');
+      setNewShopGst('');
       setShowAddForm(false);
     } catch (err) {
       console.error(err);
+      setShopError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -574,11 +606,35 @@ export default function ShopRegistry({
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1">
+              {language === 'te' ? 'జీఎస్‌టీ సంఖ్య (GST Number) *' : 'GST Number *'}
+            </label>
+            <input
+              id="shop-gst-input"
+              type="text"
+              required
+              placeholder="e.g. 37AAAAA0000A1Z5"
+              value={newShopGst}
+              onChange={(e) => setNewShopGst(e.target.value)}
+              className="w-full bg-slate-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 font-semibold text-slate-900"
+            />
+          </div>
+
+          {shopError && (
+            <div className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-100">
+              {shopError}
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-2">
             <button
               id="cancel-shop-submit-btn"
               type="button"
-              onClick={() => setShowAddForm(false)}
+              onClick={() => {
+                setShowAddForm(false);
+                setShopError('');
+              }}
               className="px-4 py-2 border border-gray-200 text-slate-700 rounded-lg hover:bg-gray-50 text-xs font-bold transition cursor-pointer"
             >
               {t.cancelBtn}
@@ -646,7 +702,7 @@ export default function ShopRegistry({
                       </h3>
                       <p className="text-[10px] font-mono font-bold text-slate-400 mt-1.5 flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
-                        నమోదైన తేదీ: {new Date(shop.createdAt).toLocaleDateString('te-IN')}
+                        {t.profileRegisterDate}: {new Date(shop.createdAt).toLocaleDateString(language === 'te' ? 'te-IN' : 'en-IN')}
                       </p>
                     </div>
 
@@ -687,6 +743,13 @@ export default function ShopRegistry({
                       <div className="flex items-start gap-2">
                         <MapPin className="w-4 h-4 text-slate-450 shrink-0 mt-0.5" />
                         <span className="font-semibold text-slate-700 leading-tight">{shop.address}</span>
+                      </div>
+                    )}
+                    {shop.gstNumber && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold px-2 py-0.5 rounded border border-gray-200">
+                          GST: {shop.gstNumber}
+                        </span>
                       </div>
                     )}
                   </div>

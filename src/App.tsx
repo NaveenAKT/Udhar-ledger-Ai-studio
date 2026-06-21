@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { getStore, generateId } from './lib/ledgerStore';
 import { auth, isFirebaseActive, signInWithPopup, GoogleAuthProvider, signOut } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -21,6 +22,7 @@ import {
   Loader2, 
   LogOut, 
   ShieldCheck, 
+  ShieldAlert,
   BookOpenCheck,
   CheckCircle,
   X,
@@ -33,17 +35,16 @@ import {
 
 export default function App() {
   const { t, language, toggleLanguage } = useLanguage();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Authentication states
   const [user, setUser] = useState<LedgerUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Layout navigation states
-  const [activeTab, setActiveTab] = useState<'customers' | 'shops' | 'transactions' | 'audit'>('customers');
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  
   // Dialog / Modal toggles
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [autoOpenShopModal, setAutoOpenShopModal] = useState(false);
 
   // Firestore & configuration errors
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
@@ -57,6 +58,33 @@ export default function App() {
   const [dataLoading, setDataLoading] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
+  // Selected customer dynamically resolved from route path /customer/:customerId
+  const routeCustomerId = useMemo(() => {
+    const match = location.pathname.match(/^\/customer\/([^/]+)/);
+    return match ? match[1] : null;
+  }, [location.pathname]);
+
+  const selectedCustomer = useMemo(() => {
+    if (!routeCustomerId) return null;
+    return customers.find(c => c.id === routeCustomerId) || null;
+  }, [customers, routeCustomerId]);
+
+  const activeTab = useMemo(() => {
+    const p = location.pathname;
+    if (p.startsWith('/shops')) return 'shops';
+    if (p.startsWith('/transactions')) return 'transactions';
+    if (p.startsWith('/audit')) return 'audit';
+    return 'customers'; // default
+  }, [location.pathname]);
+
+  const handleSelectCustomer = (customer: Customer | null) => {
+    if (customer) {
+      navigate(`/customer/${customer.id}`);
+    } else {
+      navigate('/');
+    }
+  };
+
   // Customer Form states
   const [custName, setCustName] = useState('');
   const [custPhone, setCustPhone] = useState('');
@@ -64,6 +92,7 @@ export default function App() {
   const [custVillage, setCustVillage] = useState('');
   const [custMandal, setCustMandal] = useState('');
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [customerError, setCustomerError] = useState<string | null>(null);
 
   // Initialize Auth Sync (Active Firebase Auth or local memory auth loader)
   useEffect(() => {
@@ -148,7 +177,7 @@ export default function App() {
     if (user) {
       loadLedgerData(user.uid, user.email);
       // Reset navigation state when switches
-      setSelectedCustomer(null);
+      navigate('/');
     } else {
       setShops([]);
       setCustomers([]);
@@ -182,7 +211,36 @@ export default function App() {
 
   // Mutator actions
   const handleAddNewCustomer = async (e: React.FormEvent) => {
-    if (!user || !custName.trim() || !custPhone.trim()) return;
+    e.preventDefault();
+    setCustomerError(null);
+
+    if (!user || !custName.trim()) return;
+
+    if (!custPhone.trim()) {
+      setCustomerError(language === 'te' ? 'మొబైల్ సంఖ్య తప్పనిసరి!' : 'Mobile number is mandatory!');
+      return;
+    }
+
+    const phoneClean = custPhone.trim().replace(/\D/g, '');
+    if (phoneClean.length !== 10) {
+      setCustomerError(language === 'te' ? 'మొబైల్ ఫోన్ నంబర్ ఖచ్చితంగా 10 అంకెలు మాత్రమే ఉండాలి!' : 'Phone number must be exactly 10 digits!');
+      return;
+    }
+
+    // Check if duplicate mobile number exists
+    const isDuplicate = customers.some(c => {
+      const cClean = c.phone.trim().replace(/\D/g, '');
+      return cClean === phoneClean;
+    });
+
+    if (isDuplicate) {
+      setCustomerError(
+        language === 'te' 
+          ? 'ఈ మొబైల్ సంఖ్యతో కస్టమర్ ఇప్పటికే ఉన్నారు! కొత్త కస్టమర్ నమోదు చేయబడదు.' 
+          : 'A customer already exists with this mobile number.'
+      );
+      return;
+    }
 
     setIsAddingCustomer(true);
     try {
@@ -194,7 +252,7 @@ export default function App() {
         store.addCustomer({
           id: generatedIdVal,
           name: custName.trim(),
-          phone: custPhone.trim(),
+          phone: phoneClean,
           email: custEmail.trim(),
           village: custVillage.trim(),
           mandal: custMandal.trim(),
@@ -204,8 +262,8 @@ export default function App() {
           itemType: 'Customer',
           itemId: generatedIdVal,
           itemDisplayName: custName.trim(),
-          details: `Created customer "${custName.trim()}" with phone ${custPhone.trim()}`,
-          detailsTe: `కస్టమర్ "${custName.trim()}" (ఫోన్: ${custPhone.trim()}) సృష్టించబడింది`,
+          details: `Created customer "${custName.trim()}" with phone ${phoneClean}`,
+          detailsTe: `కస్టమర్ "${custName.trim()}" (ఫోన్: ${phoneClean}) సృష్టించబడింది`,
           performedByEmail: user.email || "",
           performedByName: user.displayName || user.email || "System/Merchant",
           performedByUid: user.uid,
@@ -217,10 +275,12 @@ export default function App() {
       setCustEmail('');
       setCustVillage('');
       setCustMandal('');
+      setCustomerError(null);
       setShowAddCustomerModal(false);
       await loadLedgerData(user.uid, user.email);
     } catch (err) {
       console.error(err);
+      setCustomerError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsAddingCustomer(false);
     }
@@ -268,8 +328,12 @@ export default function App() {
     await loadLedgerData(user.uid, user.email);
   };
 
-  const handleAddShopAction = async (name: string, phone: string, address: string) => {
+  const handleAddShopAction = async (name: string, phone: string, address: string, gstNumber: string) => {
     if (!user) return;
+    const isSuper = user.email === 'naveenkumar31343@gmail.com' || user.email === 'akuthota.rajkumar@gmail.com';
+    if (!isSuper) {
+      throw new Error("Only super users can register a merchant.");
+    }
     const store = getStore(user.uid, user.email || undefined);
     const shopId = generateId();
     await Promise.all([
@@ -277,15 +341,16 @@ export default function App() {
         id: shopId,
         name,
         phone,
-        address
+        address,
+        gstNumber
       }),
       store.addAuditLog({
         actionType: 'CREATE_SHOP',
         itemType: 'Shop',
         itemId: shopId,
         itemDisplayName: name,
-        details: `Registered new shop "${name}" at "${address}"`,
-        detailsTe: `కొత్త షాపు "${name}" (${address}) నమోదు చేయబడింది`,
+        details: `Registered new shop "${name}" at "${address}" with GST ${gstNumber}`,
+        detailsTe: `కొత్త షాపు "${name}" (${address}) GST ${gstNumber} తో నమోదు చేయబడింది`,
         performedByEmail: user.email || "",
         performedByName: user.displayName || user.email || "System",
         performedByUid: user.uid
@@ -478,6 +543,12 @@ export default function App() {
     return newLog;
   };
 
+  // Determine if user is super user
+  const isSuperUser = useMemo(() => {
+    if (!user) return false;
+    return user.email === 'naveenkumar31343@gmail.com' || user.email === 'akuthota.rajkumar@gmail.com';
+  }, [user]);
+
   // Sync selectedCustomer reference on transaction/customer list updates to keep profile screen accurate
   const synchronizedSelectedCustomer = useMemo(() => {
     if (!selectedCustomer) return null;
@@ -487,21 +558,19 @@ export default function App() {
   // 1. ACL Check: If they have no shop access AND not superuser, they can't see any customers
   const visibleCustomers = useMemo(() => {
     if (!user) return [];
-    const isSuper = user.email === 'naveenkumar31343@gmail.com';
-    if (isSuper) return customers;
+    if (isSuperUser) return customers;
     
     // Check if they have access to at least 1 shop
     if (shops.length === 0) {
       return [];
     }
     return customers;
-  }, [customers, shops, user]);
+  }, [customers, shops, isSuperUser, user]);
 
   // 2. Customers added to their shop
   const customersAddedToMyShop = useMemo(() => {
     if (!user) return new Set<string>();
-    const isSuper = user.email === 'naveenkumar31343@gmail.com';
-    if (isSuper) {
+    if (isSuperUser) {
       return new Set<string>(customers.map(c => c.id));
     }
     
@@ -523,22 +592,23 @@ export default function App() {
     });
     
     return addedCustomerIds;
-  }, [customers, transactions, shops, user]);
+  }, [customers, transactions, shops, isSuperUser, user]);
 
-  // 3. Filtered transactions based on ACL (only transactions of customers added to my shop)
+  // 3. Filtered transactions based on ACL: All transactions of a customer should be visible to every one who has access to at least one customer
   const visibleTransactions = useMemo(() => {
     if (!user) return [];
-    const isSuper = user.email === 'naveenkumar31343@gmail.com';
-    if (isSuper) return transactions;
+    if (isSuperUser) return transactions;
     
-    return transactions.filter(tx => customersAddedToMyShop.has(tx.customerId));
-  }, [transactions, customersAddedToMyShop, user]);
+    if (visibleCustomers.length > 0) {
+      return transactions;
+    }
+    return [];
+  }, [transactions, visibleCustomers, isSuperUser, user]);
 
   // 4. Secure Shop-Specific Audit Trail Filter based on associated shops
   const visibleAuditLogs = useMemo(() => {
     if (!user) return [];
-    const isSuper = user.email === 'naveenkumar31343@gmail.com';
-    if (isSuper) return auditLogs;
+    if (isSuperUser) return auditLogs;
 
     const myShopIds = new Set(shops.map(s => s.id));
     const allowedCustomerIds = customersAddedToMyShop;
@@ -562,19 +632,19 @@ export default function App() {
       }
       return log.performedById === user.uid;
     });
-  }, [auditLogs, shops, customersAddedToMyShop, transactions, user]);
+  }, [auditLogs, shops, customersAddedToMyShop, transactions, isSuperUser, user]);
 
   // Determine user role tag
   const userRoleTag = useMemo(() => {
     if (!user) return "";
-    if (user.email === 'naveenkumar31343@gmail.com') {
+    if (isSuperUser) {
       return t.superuserTag;
     }
     if (shops.length > 0) {
       return t.shopOwnerTag;
     }
     return t.normalUserTag;
-  }, [user, shops]);
+  }, [user, shops, isSuperUser]);
 
   if (authLoading) {
     return (
@@ -621,6 +691,50 @@ export default function App() {
   }
 
   // MAIN DASHBOARD LAYOUT
+  if (!isSuperUser && shops.length === 0) {
+    return (
+      <div id="unauthorized-layout" className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-6 text-slate-800">
+        <div id="unauthorized-card" className="bg-white border border-gray-200 rounded-3xl p-8 max-w-sm w-full shadow-lg space-y-6 text-center animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-16 h-16 bg-red-50 text-red-650 rounded-full flex items-center justify-center mx-auto border border-red-100 shadow-xs">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          
+          <div className="space-y-2">
+            <h1 className="text-xl font-black text-slate-900 tracking-tight leading-snug">
+              {language === 'te' ? 'మీకు ప్రవేశించడానికి అనుమతి లేదు' : 'You are not authorised to open'}
+            </h1>
+            <p className="text-xs text-slate-500 font-bold leading-relaxed">
+              {language === 'te' 
+                ? 'మీ ఖాతాకు ఏ కిరాణా లేదా దుకాణం లింక్ చేయబడలేదు. ప్రవేశించడానికి దయచేసి సూపర్ యూజర్‌ను సంప్రదించండి.' 
+                : 'No registered shops or merchant records found for this account. Please contact a superuser to authorize your access.'}
+            </p>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-xl border border-gray-150 text-[10px] font-mono font-bold text-slate-500 break-all">
+            {language === 'te' ? 'ఈమెయిల్: ' : 'Email: '} {user.email}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={toggleLanguage}
+              className="flex-1 flex items-center justify-center gap-1 px-3 py-2.5 border border-gray-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              <Languages className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{language === 'te' ? 'English' : 'తెలుగు'}</span>
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-red-650 hover:bg-red-700 text-white rounded-xl text-xs font-black transition cursor-pointer shadow-xs"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{t.logOut}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div id="main-ledger-dashboard" className="min-h-screen bg-slate-50 flex flex-col text-slate-900">
       
@@ -769,7 +883,7 @@ export default function App() {
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-150 pb-2">
             <div className="flex gap-1.5 p-1 bg-gray-150/50 border border-gray-200 rounded-xl self-start">
               <button
-                onClick={() => { setActiveTab('customers'); setSelectedCustomer(null); }}
+                onClick={() => navigate('/')}
                 className={`px-4 py-2 rounded-lg text-xs font-black tracking-tight transition cursor-pointer flex items-center gap-2 ${
                   activeTab === 'customers' 
                     ? 'bg-white text-emerald-800 shadow-2xs border border-gray-200' 
@@ -781,7 +895,7 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => { setActiveTab('transactions'); setSelectedCustomer(null); }}
+                onClick={() => navigate('/transactions')}
                 className={`px-4 py-2 rounded-lg text-xs font-black tracking-tight transition cursor-pointer flex items-center gap-2 ${
                   activeTab === 'transactions' 
                     ? 'bg-white text-emerald-800 shadow-2xs border border-gray-200' 
@@ -793,7 +907,7 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => { setActiveTab('shops'); setSelectedCustomer(null); }}
+                onClick={() => navigate('/shops')}
                 className={`px-4 py-2 rounded-lg text-xs font-black tracking-tight transition cursor-pointer flex items-center gap-2 ${
                   activeTab === 'shops' 
                     ? 'bg-white text-emerald-800 shadow-2xs border border-gray-200' 
@@ -805,7 +919,7 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => { setActiveTab('audit'); setSelectedCustomer(null); }}
+                onClick={() => navigate('/audit')}
                 className={`px-4 py-2 rounded-lg text-xs font-black tracking-tight transition cursor-pointer flex items-center gap-2 ${
                   activeTab === 'audit' 
                     ? 'bg-white text-emerald-800 shadow-2xs border border-gray-200' 
@@ -853,7 +967,7 @@ export default function App() {
                   shops={shops}
                   currentUser={user}
                   auditLogs={visibleAuditLogs}
-                  onBack={() => setSelectedCustomer(null)}
+                  onBack={() => handleSelectCustomer(null)}
                   onAddTransaction={handleAddTransactionAction}
                   onUpdateTransaction={handleUpdateTransactionAction}
                   onDeleteTransaction={handleDeleteTransactionAction}
@@ -866,11 +980,15 @@ export default function App() {
                       customers={visibleCustomers}
                       transactions={visibleTransactions}
                       currentUser={user}
-                      onSelectCustomer={setSelectedCustomer}
+                      onSelectCustomer={handleSelectCustomer}
                       onAddCustomerClick={() => setShowAddCustomerModal(true)}
                       onUpdateCustomer={handleUpdateCustomerAction}
                       onDeleteCustomer={handleDeleteCustomerAction}
                       hasShops={shops.length > 0}
+                      onGoToAddShop={() => {
+                        navigate('/shops');
+                        setAutoOpenShopModal(true);
+                      }}
                     />
                   )}
 
@@ -881,7 +999,7 @@ export default function App() {
                       shops={shops}
                       currentUser={user}
                       auditLogs={visibleAuditLogs}
-                      onSelectCustomer={setSelectedCustomer}
+                      onSelectCustomer={handleSelectCustomer}
                       onUpdateTransaction={handleUpdateTransactionAction}
                       onDeleteTransaction={handleDeleteTransactionAction}
                       initialSubTab="ledger"
@@ -900,6 +1018,8 @@ export default function App() {
                       currentUserEmail={user.email || undefined}
                       onUpdateShopCollaborators={handleUpdateShopCollaboratorsAction}
                       onGetMerchantByEmail={handleGetMerchantByEmailAction}
+                      autoOpenAddForm={autoOpenShopModal}
+                      onAddFormOpened={() => setAutoOpenShopModal(false)}
                     />
                   )}
 
@@ -910,7 +1030,7 @@ export default function App() {
                       shops={shops}
                       currentUser={user}
                       auditLogs={visibleAuditLogs}
-                      onSelectCustomer={setSelectedCustomer}
+                      onSelectCustomer={handleSelectCustomer}
                       onUpdateTransaction={handleUpdateTransactionAction}
                       onDeleteTransaction={handleDeleteTransactionAction}
                       initialSubTab="audit"
@@ -1006,10 +1126,19 @@ export default function App() {
                 </div>
               </div>
 
+              {customerError && (
+                <div className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-100 mb-2">
+                  {customerError}
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-2 border-t mt-4">
                 <button
                   type="button"
-                  onClick={() => setShowAddCustomerModal(false)}
+                  onClick={() => {
+                    setShowAddCustomerModal(false);
+                    setCustomerError(null);
+                  }}
                   disabled={isAddingCustomer}
                   className="px-4 py-2 border border-gray-200 text-slate-700 rounded-lg hover:bg-gray-50 text-xs font-bold transition"
                 >

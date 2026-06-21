@@ -45,6 +45,61 @@
   --color-orange-750: #c2410c;
 }
 
+/* Custom Mobile-Friendly Utility Mixins */
+@utility mobile-friendly-container {
+  width: 100%;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  @media (min-width: 640px) {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@utility mobile-friendly-card {
+  padding: 1rem;
+  border-radius: 1rem;
+  @media (min-width: 640px) {
+    padding: 1.5rem;
+    border-radius: 1.5rem;
+  }
+}
+
+@utility mobile-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@utility touch-button {
+  min-height: 44px;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@utility responsive-text-xs {
+  font-size: 11px;
+  @media (min-width: 640px) {
+    font-size: 12px;
+  }
+}
+
+@utility responsive-text-sm {
+  font-size: 12px;
+  @media (min-width: 640px) {
+    font-size: 14px;
+  }
+}
+
+@utility responsive-text-lg {
+  font-size: 16px;
+  @media (min-width: 640px) {
+    font-size: 18px;
+  }
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--color-warm-gray);
