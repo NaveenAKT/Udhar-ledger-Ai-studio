@@ -153,7 +153,7 @@ export class LocalLedgerStore implements LedgerStore {
     }
   }
 
-  async updateShop(shopId: string, name: string, phone: string, address: string): Promise<void> {
+  async updateShop(shopId: string, name: string, phone: string, address: string, ownerId?: string): Promise<void> {
     const shops = this.getData<Shop>('shops');
     const idx = shops.findIndex(s => s.id === shopId);
     if (idx !== -1) {
@@ -161,7 +161,8 @@ export class LocalLedgerStore implements LedgerStore {
         ...shops[idx],
         name,
         phone,
-        address
+        address,
+        ...(ownerId ? { ownerId } : {})
       };
       this.saveData('shops', shops);
     }
@@ -458,11 +459,13 @@ export class FirebaseLedgerStore implements LedgerStore {
     }
   }
 
-  async updateShop(shopId: string, name: string, phone: string, address: string): Promise<void> {
+  async updateShop(shopId: string, name: string, phone: string, address: string, ownerId?: string): Promise<void> {
     const path = `shops/${shopId}`;
     try {
       const docRef = doc(db, 'shops', shopId);
-      await updateDoc(docRef, { name, phone, address });
+      const updates: any = { name, phone, address };
+      if (ownerId) updates.ownerId = ownerId;
+      await updateDoc(docRef, updates);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }

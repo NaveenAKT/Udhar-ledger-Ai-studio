@@ -8,13 +8,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { getStore, generateId } from './lib/ledgerStore';
 import { auth, isFirebaseActive, signInWithPopup, GoogleAuthProvider, signOut } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Customer, Shop, Transaction, MonthlyLog, LedgerUser, AuditLogEntry } from './types';
+import { Customer, Shop, Transaction, MonthlyLog, LedgerUser, AuditLogEntry, Merchant } from './types';
 import { useLanguage } from './lib/translations';
 import CustomerDirectory from './components/CustomerDirectory';
 import ShopRegistry from './components/ShopRegistry';
 import CustomerProfile from './components/CustomerProfile';
 import BackgroundAutomation from './components/BackgroundAutomation';
 import MerchantTransactions from './components/MerchantTransactions';
+import SelfTestDashboard from './components/SelfTestDashboard';
 import { 
   UserCheck, 
   Store, 
@@ -44,6 +45,7 @@ export default function App() {
 
   // Dialog / Modal toggles
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [showSelfTestModal, setShowSelfTestModal] = useState(false);
   const [autoOpenShopModal, setAutoOpenShopModal] = useState(false);
 
   // Firestore & configuration errors
@@ -57,6 +59,7 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
 
   // Selected customer dynamically resolved from route path /customer/:customerId
   const routeCustomerId = useMemo(() => {
@@ -147,11 +150,12 @@ export default function App() {
       const shopList = await store.getShops(userEmail || undefined);
       const associatedShopIds = shopList.map(s => s.id);
 
-      const [customerList, txList, logList, auditLogList] = await Promise.all([
+      const [customerList, txList, logList, auditLogList, merchantList] = await Promise.all([
         store.getCustomers(associatedShopIds),
         store.getTransactions(associatedShopIds),
         store.getMonthlyLogs(),
-        store.getAuditLogs()
+        store.getAuditLogs(),
+        store.getMerchants()
       ]);
       
       setShops(shopList);
@@ -159,6 +163,7 @@ export default function App() {
       setTransactions(txList);
       setMonthlyLogs(logList);
       setAuditLogs(auditLogList || []);
+      setMerchants(merchantList || []);
     } catch (err: any) {
       console.error("Error loading ledger data: ", err);
       const stringifiedErrMsg = err instanceof Error ? err.message : String(err);
@@ -359,11 +364,11 @@ export default function App() {
     await loadLedgerData(user.uid, user.email);
   };
 
-  const handleUpdateShopAction = async (shopId: string, name: string, phone: string, address: string) => {
+  const handleUpdateShopAction = async (shopId: string, name: string, phone: string, address: string, ownerId?: string) => {
     if (!user) return;
     const store = getStore(user.uid, user.email || undefined);
     await Promise.all([
-      store.updateShop(shopId, name, phone, address),
+      store.updateShop(shopId, name, phone, address, ownerId),
       store.addAuditLog({
         actionType: 'UPDATE_SHOP',
         itemType: 'Shop',
@@ -403,8 +408,14 @@ export default function App() {
 
   const handleUpdateShopCollaboratorsAction = async (shopId: string, emails: string[], uids: string[]) => {
     if (!user) return;
-    const store = getStore(user.uid, user.email || undefined);
     const s = shops.find(sh => sh.id === shopId);
+    const isSuper = user.email === 'naveenkumar31343@gmail.com' || user.email === 'akuthota.rajkumar@gmail.com';
+    const isOwner = s && (s.ownerId === user.uid || isSuper);
+    if (!isOwner) {
+      throw new Error("Only the shop admin/owner can add or update collaborators.");
+    }
+
+    const store = getStore(user.uid, user.email || undefined);
     const shopNameVal = s ? s.name : "Unknown";
     await Promise.all([
       store.updateShopCollaborators(shopId, emails, uids),
@@ -690,6 +701,17 @@ export default function App() {
     );
   }
 
+  if (user && dataLoading && shops.length === 0) {
+    return (
+      <div id="data-loading-screen" className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 gap-3">
+        <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+        <span className="text-sm font-semibold text-gray-450 font-mono">
+          {language === 'te' ? 'సమాచారం లోడ్ అవుతోంది...' : 'Loading ledger data...'}
+        </span>
+      </div>
+    );
+  }
+
   // MAIN DASHBOARD LAYOUT
   if (!isSuperUser && shops.length === 0) {
     return (
@@ -755,6 +777,17 @@ export default function App() {
 
           {/* User profile & Sign Out */}
           <div className="flex items-center gap-3">
+            {/* Run ACL Self-Test Button */}
+            <button
+              id="run-self-test-btn"
+              onClick={() => setShowSelfTestModal(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold tracking-wide transition border border-emerald-200 cursor-pointer shadow-2xs mr-1 leading-none"
+              title={language === 'te' ? 'భద్రత & ACL స్వయం రన్ పరీక్షా సదుపాయం' : 'Trigger Security & Access Protection Self-Test Sandbox'}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>{language === 'te' ? 'భద్రతా స్వయం-పరీక్ష' : 'ACL Self-Test'}</span>
+            </button>
+
             {/* Language Switcher Toggle */}
             <button
               id="language-switcher-btn"
@@ -1009,6 +1042,7 @@ export default function App() {
                   {activeTab === 'shops' && (
                     <ShopRegistry
                       shops={shops}
+                      merchants={merchants}
                       transactions={visibleTransactions}
                       auditLogs={visibleAuditLogs}
                       onAddShop={handleAddShopAction}
@@ -1157,6 +1191,14 @@ export default function App() {
             </form>
           </div>
         </div>
+      )}
+
+      {showSelfTestModal && (
+        <SelfTestDashboard
+          isOpen={showSelfTestModal}
+          onClose={() => setShowSelfTestModal(false)}
+          language={language}
+        />
       )}
     </div>
   );

@@ -118,7 +118,7 @@ export interface LedgerStore {
   // Shops
   getShops(userEmail?: string): Promise<Shop[]>;
   addShop(shop: Omit<Shop, 'ownerId' | 'createdAt' | 'collaboratorIds' | 'collaboratorEmails'>): Promise<Shop>;
-  updateShop(shopId: string, name: string, phone: string, address: string): Promise<void>;
+  updateShop(shopId: string, name: string, phone: string, address: string, ownerId?: string): Promise<void>;
   deleteShop(shopId: string): Promise<void>;
   updateShopCollaborators(shopId: string, emails: string[], uids: string[]): Promise<void>;
   

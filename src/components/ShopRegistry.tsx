@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Shop, Transaction, AuditLogEntry } from '../types';
+import { Shop, Transaction, AuditLogEntry, Merchant } from '../types';
 import { useLanguage } from '../lib/translations';
 import { 
   Store, 
@@ -31,10 +31,11 @@ import {
 
 interface ShopRegistryProps {
   shops: Shop[];
+  merchants?: Merchant[];
   transactions: Transaction[];
   auditLogs: AuditLogEntry[];
   onAddShop: (name: string, phone: string, address: string, gstNumber: string) => Promise<void>;
-  onUpdateShop: (shopId: string, name: string, phone: string, address: string) => Promise<void>;
+  onUpdateShop: (shopId: string, name: string, phone: string, address: string, ownerId?: string) => Promise<void>;
   onDeleteShop: (shopId: string) => Promise<void>;
   currentUserId: string;
   currentUserEmail?: string;
@@ -46,6 +47,7 @@ interface ShopRegistryProps {
 
 export default function ShopRegistry({
   shops,
+  merchants = [],
   transactions,
   auditLogs = [],
   onAddShop,
@@ -85,6 +87,8 @@ export default function ShopRegistry({
   const [editPhone, setEditPhone] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editOwnerEmail, setEditOwnerEmail] = useState('');
+  const [editOwnerError, setEditOwnerError] = useState('');
 
   // Deletion state tracker (stores shop ID when delete clicked)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -187,6 +191,9 @@ export default function ShopRegistry({
     setEditName(shop.name);
     setEditPhone(shop.phone);
     setEditAddress(shop.address);
+    setEditOwnerError('');
+    const ownerMerch = merchants?.find(m => m.uid === shop.ownerId);
+    setEditOwnerEmail(ownerMerch?.email || '');
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -194,8 +201,27 @@ export default function ShopRegistry({
     if (!editingShop || !editName.trim()) return;
 
     setIsSavingEdit(true);
+    setEditOwnerError('');
     try {
-      await onUpdateShop(editingShop.id, editName.trim(), editPhone.trim(), editAddress.trim());
+      let ownerId: string | undefined = undefined;
+      const isSuperUser = currentUserEmail === 'naveenkumar31343@gmail.com' || currentUserEmail === 'akuthota.rajkumar@gmail.com';
+      if (isSuperUser && editOwnerEmail.trim()) {
+        const originalOwner = merchants?.find(m => m.uid === editingShop.ownerId);
+        if (editOwnerEmail.trim() !== (originalOwner?.email || '')) {
+          if (onGetMerchantByEmail) {
+            const merch = await onGetMerchantByEmail(editOwnerEmail.trim());
+            if (merch) {
+              ownerId = merch.uid;
+            } else {
+              setEditOwnerError(language === 'te' ? 'ఈ ఇమెయిల్ కలిగిన మర్చంట్ లభించలేదు.' : 'No merchant with this email address found.');
+              setIsSavingEdit(false);
+              return;
+            }
+          }
+        }
+      }
+
+      await onUpdateShop(editingShop.id, editName.trim(), editPhone.trim(), editAddress.trim(), ownerId);
       setEditingShop(null);
     } catch (err) {
       console.error(err);
@@ -512,6 +538,24 @@ export default function ShopRegistry({
                 />
               </div>
 
+              {((currentUserEmail === 'naveenkumar31343@gmail.com' || currentUserEmail === 'akuthota.rajkumar@gmail.com')) && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-1">
+                    {language === 'te' ? 'యజమాని ఇమెయిల్ (Owner Email)' : 'Owner Email'}
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={editOwnerEmail}
+                    onChange={(e) => setEditOwnerEmail(e.target.value)}
+                    className="w-full bg-slate-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold text-slate-850"
+                  />
+                  {editOwnerError && (
+                    <p className="text-[10px] text-red-650 font-bold mt-1">{editOwnerError}</p>
+                  )}
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-2 border-t mt-4">
                 <button
                   type="button"
@@ -547,7 +591,7 @@ export default function ShopRegistry({
           </p>
         </div>
 
-        {!showAddForm && (
+        {isSuperUser && !showAddForm && (
           <button
             id="register-shop-trigger"
             onClick={() => setShowAddForm(true)}
@@ -662,12 +706,14 @@ export default function ShopRegistry({
           <p className="text-slate-500 text-xs mt-1">
             {t.shopNoShopsDesc}
           </p>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="mt-6 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition"
-          >
-            {t.addFirstShopBtn}
-          </button>
+          {isSuperUser && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="mt-6 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition"
+            >
+              {t.addFirstShopBtn}
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -678,6 +724,8 @@ export default function ShopRegistry({
             const isOwner = shop.ownerId === currentUserId || isSuperUser;
             const emails = shop.collaboratorEmails || [];
             const uids = shop.collaboratorIds || [];
+            const ownerMerchant = merchants?.find(m => m.uid === shop.ownerId);
+            const ownerName = ownerMerchant?.displayName || ownerMerchant?.email || shop.ownerId;
 
             return (
               <div
@@ -725,9 +773,11 @@ export default function ShopRegistry({
                       </p>
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">బాకీదారులు</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        {language === 'te' ? 'బాకీదారులు' : 'Debtors'}
+                      </span>
                       <p className="font-mono text-slate-900 font-bold text-base font-sans">
-                        {stats.customerCount} మంది
+                        {stats.customerCount} {language === 'te' ? 'మంది' : 'customers'}
                       </p>
                     </div>
                   </div>
@@ -840,8 +890,8 @@ export default function ShopRegistry({
                         )}
                       </div>
                     ) : (
-                      <p className="text-[10px] text-slate-450 font-mono bg-slate-50 p-2 rounded-lg border border-gray-150 font-bold">
-                        లెడ్జర్ ఓనర్ ఐడి: <span className="font-semibold text-slate-705">{shop.ownerId.slice(0, 16)}...</span>
+                      <p className="text-[10px] text-slate-450 bg-slate-50 p-2 rounded-lg border border-gray-150 font-bold">
+                        {t.merchantOwnerName}: <span className="font-semibold text-slate-705">{ownerName}</span>
                       </p>
                     )}
                   </div>
@@ -857,9 +907,20 @@ export default function ShopRegistry({
                       <div className="flex items-start gap-2.5">
                         <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                         <div className="text-xs text-amber-900 leading-normal">
-                          <p className="font-extrabold text-amber-950 mb-1">దుకాణ వివరాల తొలగింపును ధృవీకరించండి</p>
-                          మీరు ఖచ్చితంగా <strong className="font-extrabold text-amber-950">{shop.name}</strong> ని తొలగించాలనుకుంటున్నారా? 
-                          ఈ చర్యవల్ల దుకాణం నమోదు రద్దవుతుంది. పూర్వ లావాదేవీల రికార్డులు అలాగే ఉంటాయి.
+                          <p className="font-extrabold text-amber-950 mb-1">
+                            {language === 'te' ? 'దుకాణ వివరాల తొలగింపును ధృవీకరించండి' : 'Confirm Shop Deregistration'}
+                          </p>
+                          {language === 'te' ? (
+                            <>
+                              మీరు ఖచ్చితంగా <strong className="font-extrabold text-amber-950">{shop.name}</strong> ని తొలగించాలనుకుంటున్నారా? 
+                              ఈ చర్యవల్ల దుకాణం నమోదు రద్దవుతుంది. పూర్వ లావాదేవీల రికార్డులు అలాగే ఉంటాయి.
+                            </>
+                          ) : (
+                            <>
+                              Are you sure you want to delete <strong className="font-extrabold text-amber-950">{shop.name}</strong>? 
+                              This action will de-register the shop. Historical transactions will remain.
+                            </>
+                          )}
                         </div>
                       </div>
                       
@@ -881,10 +942,10 @@ export default function ShopRegistry({
                           {isDeleting ? (
                             <>
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              తొలగిస్తున్నారు...
+                              {language === 'te' ? 'తొలగిస్తున్నారు...' : 'Deleting...'}
                             </>
                           ) : (
-                            'శాశ్వతంగా తొలగించు'
+                            language === 'te' ? 'శాశ్వతంగా తొలగించు' : 'Permanently Delete'
                           )}
                         </button>
                       </div>
@@ -898,11 +959,11 @@ export default function ShopRegistry({
                           className="px-3 py-1.5 bg-amber-50 hover:bg-orange-50 text-orange-750 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-orange-100/40"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-orange-650" />
-                          దుకాణ నమోదు రద్దుచేయి
+                          {language === 'te' ? 'దుకాణ నమోదు రద్దుచేయి' : 'Deregister Shop'}
                         </button>
                       ) : (
                         <span className="text-[10px] text-slate-400 font-mono font-bold">
-                          యాక్సెస్ భాగస్వామ్యం మాత్రమే
+                          {language === 'te' ? 'యాక్సెస్ భాగస్వామ్యం మాత్రమే' : 'Shared Access Only'}
                         </span>
                       )}
 
