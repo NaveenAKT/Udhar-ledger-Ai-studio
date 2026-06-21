@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Shop, Transaction } from '../types';
+import { Shop, Transaction, AuditLogEntry } from '../types';
 import { useLanguage } from '../lib/translations';
 import { 
   Store, 
@@ -22,13 +22,17 @@ import {
   Check,
   Eye,
   ArrowRight,
+  ArrowLeft,
   Search,
-  FileText
+  FileText,
+  History,
+  Activity
 } from 'lucide-react';
 
 interface ShopRegistryProps {
   shops: Shop[];
   transactions: Transaction[];
+  auditLogs: AuditLogEntry[];
   onAddShop: (name: string, phone: string, address: string) => Promise<void>;
   onUpdateShop: (shopId: string, name: string, phone: string, address: string) => Promise<void>;
   onDeleteShop: (shopId: string) => Promise<void>;
@@ -41,6 +45,7 @@ interface ShopRegistryProps {
 export default function ShopRegistry({
   shops,
   transactions,
+  auditLogs = [],
   onAddShop,
   onUpdateShop,
   onDeleteShop,
@@ -52,6 +57,7 @@ export default function ShopRegistry({
   const { t, language } = useLanguage();
   const [selectedShopTxId, setSelectedShopTxId] = useState<string | null>(null);
   const [shopTxSearchQuery, setShopTxSearchQuery] = useState('');
+  const [viewingHistoryShop, setViewingHistoryShop] = useState<Shop | null>(null);
 
   // Add Shop states
   const [showAddForm, setShowAddForm] = useState(false);
@@ -76,6 +82,22 @@ export default function ShopRegistry({
   const [isCollabWorking, setIsCollabWorking] = useState<Record<string, boolean>>({});
   const [collabError, setCollabError] = useState<Record<string, string>>({});
   const [collabSuccess, setCollabSuccess] = useState<Record<string, string>>({});
+
+  // Confirmation state for adding/removing collaborators
+  const [collabAddConfirm, setCollabAddConfirm] = useState<{
+    shopId: string;
+    email: string;
+    currentEmails: string[];
+    currentUids: string[];
+  } | null>(null);
+
+  const [collabRemoveConfirm, setCollabRemoveConfirm] = useState<{
+    shopId: string;
+    email: string;
+    idx: number;
+    currentEmails: string[];
+    currentUids: string[];
+  } | null>(null);
 
   const isSuperUser = currentUserEmail === 'naveenkumar31343@gmail.com';
 
@@ -177,6 +199,19 @@ export default function ShopRegistry({
       return;
     }
 
+    setCollabAddConfirm({
+      shopId,
+      email: input,
+      currentEmails,
+      currentUids
+    });
+  };
+
+  const executeAddCollaborator = async () => {
+    if (!collabAddConfirm || !onUpdateShopCollaborators) return;
+    const { shopId, email, currentEmails, currentUids } = collabAddConfirm;
+    setCollabAddConfirm(null);
+
     setIsCollabWorking(prev => ({ ...prev, [shopId]: true }));
     setCollabError(prev => ({ ...prev, [shopId]: '' }));
     setCollabSuccess(prev => ({ ...prev, [shopId]: '' }));
@@ -184,13 +219,13 @@ export default function ShopRegistry({
     try {
       let targetUid = '';
       if (onGetMerchantByEmail) {
-        const m = await onGetMerchantByEmail(input);
+        const m = await onGetMerchantByEmail(email);
         if (m) {
           targetUid = m.uid;
         }
       }
 
-      const updatedEmails = [...currentEmails, input];
+      const updatedEmails = [...currentEmails, email];
       const updatedUids = targetUid ? [...currentUids, targetUid] : [...currentUids];
 
       await onUpdateShopCollaborators(shopId, updatedEmails, updatedUids);
@@ -208,6 +243,187 @@ export default function ShopRegistry({
       setIsCollabWorking(prev => ({ ...prev, [shopId]: false }));
     }
   };
+
+  const executeRemoveCollaborator = async () => {
+    if (!collabRemoveConfirm || !onUpdateShopCollaborators) return;
+    const { shopId, email, idx, currentEmails, currentUids } = collabRemoveConfirm;
+    setCollabRemoveConfirm(null);
+
+    setIsCollabWorking(prev => ({ ...prev, [shopId]: true }));
+    setCollabError(prev => ({ ...prev, [shopId]: '' }));
+    setCollabSuccess(prev => ({ ...prev, [shopId]: '' }));
+
+    try {
+      const updatedEmails = currentEmails.filter(e => e !== email);
+      const uidToRemove = currentUids[idx];
+      const updatedUids = currentUids.filter(u => u !== uidToRemove);
+
+      await onUpdateShopCollaborators(shopId, updatedEmails, updatedUids);
+      setCollabSuccess(prev => ({ ...prev, [shopId]: 'సహాయకుడు విజయవంతంగా తొలగించబడ్డారు!' }));
+      setTimeout(() => setCollabSuccess(prev => ({ ...prev, [shopId]: '' })), 5000);
+    } catch (err: any) {
+      setCollabError(prev => ({ ...prev, [shopId]: err?.message || 'కూటమి నుండి తొలగించడం విఫలమైంది.' }));
+    } finally {
+      setIsCollabWorking(prev => ({ ...prev, [shopId]: false }));
+    }
+  };
+
+  if (selectedShopTxId) {
+    const selectedShop = shops.find(s => s.id === selectedShopTxId);
+    if (selectedShop) {
+      const shopTxList = transactions.filter(tx => tx.shopId === selectedShopTxId);
+      
+      const filteredShopTxList = shopTxList.filter(tx => {
+        const query = shopTxSearchQuery.toLowerCase().trim();
+        if (!query) return true;
+        return tx.customerName.toLowerCase().includes(query) ||
+               (tx.notes && tx.notes.toLowerCase().includes(query)) ||
+               tx.amount.toString().includes(query);
+      });
+
+      return (
+        <div id="shop-transactions-page" className="space-y-6 animate-in fade-in duration-200 text-slate-800">
+          {/* Header Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-150 shadow-xs">
+            <button
+              id="close-shop-tx-btn-p"
+              onClick={() => { setSelectedShopTxId(null); setShopTxSearchQuery(''); }}
+              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold px-5 py-2.5 rounded-xl transition border border-gray-250 cursor-pointer text-xs group shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4 text-emerald-600 group-hover:-translate-x-1 transition-transform" />
+              <span>{language === 'te' ? 'తిరిగి దుకాణాల జాబితాకు' : 'Back to Shop Registry'}</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-100 border border-emerald-250 rounded-xl flex items-center justify-center text-emerald-750 shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-905 flex items-center gap-2">
+                  <span>{selectedShop.name}</span>
+                  <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-extrabold tracking-wide font-mono">
+                    {shopTxList.length} {language === 'te' ? 'లావాదేవీలు' : 'Transactions'}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                  {language === 'te' ? 'ఈ దుకాణానికి సంబంధించిన అన్ని బకాయి/చెల్లింపుల రికార్డు' : 'All credit/payment records for this shop'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Search bar and info */}
+          <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-4">
+            <div>
+              <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{language === 'te' ? 'బకాయి వివరాల లీజర్ రికార్డు' : 'Due ledger records'}</h4>
+            </div>
+
+            {shopTxList.length > 0 && (
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <Search className="w-4 h-4" />
+                </span>
+                <input
+                  id="shop-tx-search-input-p"
+                  type="text"
+                  placeholder={language === 'te' ? 'కస్టమర్ పేరు లేదా వివరాలతో శోధించండి...' : 'Search by customer name, notes...'}
+                  value={shopTxSearchQuery}
+                  onChange={(e) => setShopTxSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold text-slate-800"
+                />
+              </div>
+            )}
+
+            {filteredShopTxList.length === 0 ? (
+              <div className="text-center py-16 p-8 border border-dashed border-gray-200 rounded-xl bg-slate-50/50">
+                <p className="text-sm text-slate-450 font-bold italic">
+                  {shopTxList.length === 0 
+                    ? (language === 'te' ? 'ఈ దుకాణానికి ఎటువంటి లావాదేవీలు లేవు.' : 'No transactions recorded for this shop.')
+                    : (language === 'te' ? 'శోధనకు సరిపోలే లావాదేవీలు లేవు.' : 'No matching transactions found.')
+                  }
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-gray-150 rounded-xl shadow-2xs">
+                {/* Desktop view (table) */}
+                <table className="hidden md:table w-full text-left border-collapse bg-white">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100 text-[10px] uppercase font-extrabold text-gray-400">
+                      <th className="px-6 py-3.5">{language === 'te' ? 'తేదీ' : 'Date'}</th>
+                      <th className="px-6 py-3.5">{language === 'te' ? 'కస్టమర్ పేరు' : 'Customer Name'}</th>
+                      <th className="px-6 py-3.5">{language === 'te' ? 'వివరాలు / నోట్స్' : 'Notes / Details'}</th>
+                      <th className="px-6 py-3.5">{language === 'te' ? 'మొత్తం' : 'Amount'}</th>
+                      <th className="px-6 py-3.5">{language === 'te' ? 'స్థితి' : 'Status'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-xs font-semibold">
+                    {filteredShopTxList.map(tx => {
+                      const isUnpaid = tx.status === 'Unpaid';
+                      return (
+                        <tr key={tx.id} className="hover:bg-slate-50/30 transition">
+                          <td className="px-6 py-4 font-mono text-gray-450 whitespace-nowrap">
+                            {new Date(tx.createdAt).toLocaleDateString('te-IN')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap font-extrabold text-slate-900 text-sm">
+                            {tx.customerName}
+                          </td>
+                          <td className="px-6 py-4 text-gray-655 max-w-xs font-medium">
+                            {tx.notes || <span className="text-gray-300 italic font-medium">{language === 'te' ? 'వివరాలు లేవు' : 'No details'}</span>}
+                          </td>
+                          <td className="px-6 py-4 font-mono font-extrabold whitespace-nowrap text-sm">
+                            <span className={isUnpaid ? 'text-red-650' : 'text-emerald-650'}>
+                              ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black leading-none uppercase ${
+                              isUnpaid ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            }`}>
+                              {tx.status === 'Unpaid' ? 'Unpaid' : 'Settled'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* Mobile view (list) - fully mobile responsive and highly readable */}
+                <div className="block md:hidden bg-white divide-y divide-gray-150">
+                  {filteredShopTxList.map(tx => {
+                    const isUnpaid = tx.status === 'Unpaid';
+                    return (
+                      <div key={tx.id} className="p-4 space-y-2 hover:bg-slate-50/30">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-slate-905 text-sm truncate max-w-[70%]">{tx.customerName}</span>
+                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                            isUnpaid ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          }`}>
+                            {tx.status === 'Unpaid' ? (language === 'te' ? 'బాకీ' : 'Unpaid') : (language === 'te' ? 'చెల్లించినది' : 'Settled')}
+                          </span>
+                        </div>
+                        {tx.notes && (
+                          <p className="text-xs text-slate-600">{tx.notes}</p>
+                        )}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[10px] text-slate-405 font-mono font-bold">
+                            {new Date(tx.createdAt).toLocaleDateString('te-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className={`font-mono text-sm font-extrabold ${isUnpaid ? 'text-red-650' : 'text-emerald-650'}`}>
+                            ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+  }
 
   return (
     <div id="shop-registry-view" className="space-y-6 animate-in fade-in duration-200 text-slate-800">
@@ -418,9 +634,15 @@ export default function ShopRegistry({
                 <div className="space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <Store className="w-5 h-5 text-emerald-600" />
-                        {shop.name}
+                      <h3 className="text-lg font-bold">
+                        <button
+                          onClick={() => setViewingHistoryShop(shop)}
+                          className="flex items-center gap-2 text-emerald-650 hover:text-emerald-800 hover:underline text-left cursor-pointer transition font-bold"
+                          title={language === 'te' ? 'దుకాణ వివరాల మార్పుల చరిత్రను చూపించు' : 'Click to see details change history of this shop'}
+                        >
+                          <Store className="w-5 h-5 shrink-0 text-emerald-600" />
+                          <span>{shop.name}</span>
+                        </button>
                       </h3>
                       <p className="text-[10px] font-mono font-bold text-slate-400 mt-1.5 flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
@@ -499,13 +721,14 @@ export default function ShopRegistry({
                             {isOwner && (
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  const updatedEmails = emails.filter(e => e !== email);
-                                  const uidToRemove = uids[idx];
-                                  const updatedUids = uids.filter(u => u !== uidToRemove);
-                                  if (onUpdateShopCollaborators) {
-                                    await onUpdateShopCollaborators(shop.id, updatedEmails, updatedUids);
-                                  }
+                                onClick={() => {
+                                  setCollabRemoveConfirm({
+                                    shopId: shop.id,
+                                    email: email,
+                                    idx: idx,
+                                    currentEmails: emails,
+                                    currentUids: uids
+                                  });
                                 }}
                                 className="text-slate-400 hover:text-red-650 transition ml-0.5 cursor-pointer rounded-full p-0.5"
                                 title="Remove Collaborator"
@@ -765,6 +988,161 @@ export default function ShopRegistry({
             </div>
           );
         })()
+      )}
+
+      {/* SHOP AUDIT LOG CHANGE HISTORY MODAL overlay */}
+      {viewingHistoryShop && (() => {
+        const shopLogs = auditLogs.filter(log => log.itemType === 'Shop' && log.itemId === viewingHistoryShop.id);
+        return (
+          <div id="shop-history-modal-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[90] animate-in fade-in duration-200">
+            <div id="shop-history-modal-card" className="bg-white rounded-3xl shadow-xl max-w-2xl w-full p-6 border border-gray-150 animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+              <div className="flex items-center justify-between border-b pb-3 mb-4 shrink-0">
+                <div>
+                  <h3 className="font-bold text-slate-905 text-base flex items-center gap-2">
+                    <History className="w-5 h-5 text-emerald-600" />
+                    <span>{viewingHistoryShop.name} - {language === 'te' ? 'మార్పుల చరిత్ర' : 'Change History'}</span>
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-400 mt-1">
+                    {language === 'te' ? 'దుకాణం వివరాల మార్పు రికార్డులు' : 'Audit trail records of shop metadata updates'}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setViewingHistoryShop(null)}
+                  className="text-gray-400 hover:text-gray-600 transition p-1 cursor-pointer bg-slate-50 hover:bg-slate-100 rounded-full"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                {shopLogs.length === 0 ? (
+                  <div className="text-center py-12 p-6">
+                    <Activity className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                    <h4 className="font-bold text-slate-700">{language === 'te' ? 'మార్పు రికార్డులు ఏవీ లేవు' : 'No Modification Logs Available'}</h4>
+                    <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                      {language === 'te' ? 'ఈ షాపు కొరకు ఎలాంటి మార్పు రికార్డులు లభించలేదు.' : 'No audit entries were recorded for this shop details so far.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border border-slate-150 rounded-xl overflow-hidden divide-y divide-slate-100">
+                    {shopLogs.map(log => (
+                      <div key={log.id} className="p-4 hover:bg-slate-50/45 transition">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                          <span className="text-[10px] font-black uppercase font-mono tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-md px-2 py-0.5">
+                            {log.actionType}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono font-bold">
+                            {new Date(log.createdAt).toLocaleString(language === 'te' ? 'te-IN' : 'en-IN')}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-slate-800 leading-normal">
+                          {language === 'te' ? log.detailsTe : log.details}
+                        </p>
+                        <div className="mt-2 text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                          <span>{language === 'te' ? 'నిర్వహించిన వారు' : 'Performed By'}:</span>
+                          <span className="text-slate-700 font-extrabold">{log.performedByName}</span>
+                          <span className="text-slate-400 font-mono">({log.performedByEmail})</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-3 border-t mt-4 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setViewingHistoryShop(null)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  {language === 'te' ? 'మూసిވެయి' : 'Close'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Confirmation Modal to Add Collaborator */}
+      {collabAddConfirm && (
+        <div id="collab-add-confirm-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99] animate-in fade-in duration-200">
+          <div id="collab-add-confirm-card" className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 border-l-4 border-emerald-600 animate-in zoom-in-95 duration-250">
+            <h3 className="text-base font-extrabold text-gray-905 flex items-center gap-2">
+              <Users className="w-5 h-5 text-emerald-600" />
+              <span>{language === 'te' ? 'వ్యాపార సహాయకుడిని జోడించాలా?' : 'Add Collaborator Confirmation'}</span>
+            </h3>
+            <p className="text-xs font-semibold text-slate-600 mt-3 leading-relaxed">
+              {language === 'te' ? (
+                <>
+                  మీరు నిజంగా <strong className="font-extrabold text-slate-900">{collabAddConfirm.email}</strong> ని సహాయకుడిగా జోడించాలనుకుంటున్నారా? 
+                  జోడించిన తర్వాత, వారు ఈ దుకాణంలోని లావాదేవీలను చూడగలరు మరియు మార్పులు చేయగలరు.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to add <strong className="font-extrabold text-slate-900">{collabAddConfirm.email}</strong> as a collaborator for this shop? 
+                  Once added, they will have access to view and manage transactions for this shop.
+                </>
+              )}
+            </p>
+            <div className="mt-6 flex justify-end gap-2 text-xs font-bold font-sans">
+              <button
+                type="button"
+                onClick={() => setCollabAddConfirm(null)}
+                className="px-4 py-2 border border-gray-200 text-slate-700 bg-white rounded-lg hover:bg-gray-50 cursor-pointer min-h-[44px]"
+              >
+                {t.cancelBtn}
+              </button>
+              <button
+                type="button"
+                onClick={executeAddCollaborator}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-750 text-white rounded-lg cursor-pointer min-h-[44px]"
+              >
+                {language === 'te' ? 'అవును, జోడించు' : 'Yes, Add Partner'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal to Remove Collaborator */}
+      {collabRemoveConfirm && (
+        <div id="collab-remove-confirm-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99] animate-in fade-in duration-200">
+          <div id="collab-remove-confirm-card" className="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 border-l-4 border-red-500 animate-in zoom-in-95 duration-250">
+            <h3 className="text-base font-extrabold text-gray-905 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-red-600" />
+              <span>{language === 'te' ? 'సహాయకుడిని తొలగించాలా?' : 'Remove Collaborator'}</span>
+            </h3>
+            <p className="text-xs font-semibold text-slate-600 mt-3 leading-relaxed">
+              {language === 'te' ? (
+                <>
+                  మీరు <strong className="font-extrabold text-slate-900">{collabRemoveConfirm.email}</strong> ని ఈ దుకాణం సహాయక బృందం నుండి తొలగించాలనుకుంటున్నారా?
+                  తొలగించిన తర్వాత శూన్యమైన అనుమతులతో వారు ఈ దుకాణ వివరాలను యాక్సెస్ చేయలేరు.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to remove <strong className="font-extrabold text-slate-900">{collabRemoveConfirm.email}</strong> from this shop's collaborator team? 
+                  Once removed, they will immediately lose all permissions to access this shop's details.
+                </>
+              )}
+            </p>
+            <div className="mt-6 flex justify-end gap-2 text-xs font-bold font-sans">
+              <button
+                type="button"
+                onClick={() => setCollabRemoveConfirm(null)}
+                className="px-4 py-2 border border-gray-200 text-slate-700 bg-white rounded-lg hover:bg-gray-50 cursor-pointer min-h-[44px]"
+              >
+                {t.cancelBtn}
+              </button>
+              <button
+                type="button"
+                onClick={executeRemoveCollaborator}
+                className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white rounded-lg cursor-pointer min-h-[44px]"
+              >
+                {language === 'te' ? 'అవును, తొలగించు' : 'Yes, Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

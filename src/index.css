@@ -50,3 +50,7 @@ body {
   background-color: var(--color-warm-gray);
   color: var(--color-slate-900);
 }
+
+html {
+  font-size: 112.5%; /* Increase base font size by 12.5% to help users over 40 read easily */
+}

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Customer, Transaction, Shop, LedgerUser } from '../types';
+import { Customer, Transaction, Shop, LedgerUser, AuditLogEntry } from '../types';
 import { useLanguage } from '../lib/translations';
 import AddDebtForm from './AddDebtForm';
 import { 
@@ -21,7 +21,9 @@ import {
   Loader2,
   BadgeDollarSign,
   User,
-  Edit2
+  Edit2,
+  History,
+  Activity
 } from 'lucide-react';
 
 interface CustomerProfileProps {
@@ -29,6 +31,7 @@ interface CustomerProfileProps {
   transactions: Transaction[];
   shops: Shop[];
   currentUser: LedgerUser | null;
+  auditLogs: AuditLogEntry[];
   onBack: () => void;
   onAddTransaction: (shopId: string, shopName: string, amount: number, notes: string) => Promise<void>;
   onUpdateTransaction: (txId: string, updates: Partial<Pick<Transaction, 'amount' | 'status' | 'notes'>>) => Promise<void>;
@@ -41,6 +44,7 @@ export default function CustomerProfile({
   transactions,
   shops,
   currentUser,
+  auditLogs = [],
   onBack,
   onAddTransaction,
   onUpdateTransaction,
@@ -53,7 +57,6 @@ export default function CustomerProfile({
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showCustomerEditModal, setShowCustomerEditModal] = useState(false);
-  
   // Customer Edit Form states
   const [custName, setCustName] = useState(customer.name);
   const [custPhone, setCustPhone] = useState(customer.phone);
@@ -106,6 +109,28 @@ export default function CustomerProfile({
       shopsCount: uniqueShops.size
     };
   }, [customerTx]);
+
+  // Group outstanding balances by individual shop (even shops the merchant doesn't have access to)
+  const debtByShop = useMemo(() => {
+    const shopMap: Record<string, { shopName: string; amount: number; isMyShop: boolean }> = {};
+    const myShopIds = new Set(shops.map(s => s.id));
+
+    // Sum up outstanding amounts per shop name using all of this customer's transactions
+    transactions.forEach(tx => {
+      if (tx.customerId === customer.id && tx.status === 'Unpaid') {
+        if (!shopMap[tx.shopId]) {
+          shopMap[tx.shopId] = {
+            shopName: tx.shopName,
+            amount: 0,
+            isMyShop: myShopIds.has(tx.shopId)
+          };
+        }
+        shopMap[tx.shopId].amount += tx.amount;
+      }
+    });
+
+    return Object.values(shopMap).sort((a, b) => b.amount - a.amount);
+  }, [customer.id, transactions, shops]);
 
   // Trigger edit modal prep
   const startEditTx = (tx: Transaction) => {
@@ -522,6 +547,57 @@ export default function CustomerProfile({
         </div>
       </div>
 
+      {/* Shop-wise Outstanding Debt Breakdowns */}
+      <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-4">
+        <div>
+          <h3 className="font-extrabold text-slate-905 text-base flex items-center gap-2">
+            <BadgeDollarSign className="w-5 h-5 text-emerald-600" />
+            <span>{language === 'te' ? 'దుకాణాల వారీగా బాకీల వివరాలు (అన్ని దుకాణాలు)' : 'Outstanding Debts by Shop (All Associated Shops)'}</span>
+          </h3>
+          <p className="text-xs font-semibold text-slate-405 mt-1">
+            {language === 'te' ? 'ఈ కస్టమర్ ఏయే దుకాణాలకు ఎంత బాకీ ఉన్నారో ఇక్కడ స్పష్టంగా చూడవచ్చు (మీకు యాక్సెస్ లేని దుకాణాలతో సహా).' : 'Detailed breakdown of how much money this customer owes to each shop across the system (including shops you do not manage).'}
+          </p>
+        </div>
+
+        {debtByShop.length === 0 ? (
+          <div className="bg-emerald-50/30 border border-emerald-100 rounded-xl p-4 text-center">
+            <span className="text-sm font-bold text-emerald-800">{language === 'te' ? 'ఈ కస్టమర్‌కు ఎలాంటి బాకీలు లేవు! అన్ని చెల్లించబడినవి.' : 'This customer does not owe money to any shops! Everything is fully settled.'}</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {debtByShop.map(item => (
+              <div 
+                key={item.shopName} 
+                className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
+                  item.isMyShop 
+                    ? 'bg-slate-55/50 border-gray-200 shadow-3xs hover:border-emerald-250' 
+                    : 'bg-amber-50/15 border-amber-100 hover:border-amber-250'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2.5">
+                  <span className="font-extrabold text-slate-800 text-sm truncate" title={item.shopName}>
+                    {item.shopName}
+                  </span>
+                  <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                    item.isMyShop 
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                      : 'bg-amber-100 text-amber-800 border border-amber-100'
+                  }`}>
+                    {item.isMyShop ? (language === 'te' ? 'మీ దుకాణం' : 'My Shop') : (language === 'te' ? 'ఇతర దుకాణం' : 'Other Shop')}
+                  </span>
+                </div>
+                <div className="mt-4 flex items-baseline justify-between pt-2 border-t border-dashed border-slate-100">
+                  <span className="text-xs text-slate-400 font-bold uppercase">{language === 'te' ? 'బాకీ' : 'Owes'}</span>
+                  <span className="text-xl font-mono font-black text-red-650">
+                    ₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Historic Ledger Tables */}
       <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-xs">
         <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
@@ -661,6 +737,54 @@ export default function CustomerProfile({
             </table>
           </div>
         )}
+      </div>
+
+      {/* Customer details edit logs section */}
+      <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-4">
+        <div>
+          <h3 className="font-bold text-gray-905 text-xs uppercase tracking-wider flex items-center gap-2">
+            <History className="w-4.5 h-4.5 text-emerald-600 font-black" />
+            <span>{language === 'te' ? 'కస్టమర్ ప్రొఫైల్ మార్పుల రికార్డు చరిత్ర' : 'Customer Profile Details Change History'}</span>
+          </h3>
+          <p className="text-xs text-slate-400 font-semibold mt-1">
+            {language === 'te' ? 'కస్టమర్ ప్రొఫైల్ తాజా మార్పుల వివరణాత్మక లీజర్ సమాచారం సమాహారం' : 'Timeline of metadata edits performed on this customer details record'}
+          </p>
+        </div>
+
+        {(() => {
+          const customerLogs = auditLogs.filter(log => log.itemType === 'Customer' && log.itemId === customer.id);
+          if (customerLogs.length === 0) {
+            return (
+              <p className="text-xs text-slate-400 font-bold italic py-4">
+                {language === 'te' ? 'ప్రొఫైల్ రికార్డుకు ఎలాంటి సవరణలు జరగలేదు.' : 'No details change history is available for this customer record.'}
+              </p>
+            );
+          }
+          return (
+            <div className="border border-slate-150 rounded-xl overflow-hidden divide-y divide-slate-100">
+              {customerLogs.map(log => (
+                <div key={log.id} className="p-4 hover:bg-slate-50/45 transition">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                    <span className="text-[10px] font-black uppercase font-mono tracking-wider bg-orange-50 text-orange-700 border border-orange-100 rounded-md px-2 py-0.5 self-start">
+                      {log.actionType}
+                    </span>
+                    <span className="text-[10px] text-slate-450 font-mono font-bold">
+                      {new Date(log.createdAt).toLocaleString(language === 'te' ? 'te-IN' : 'en-IN')}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800 leading-normal">
+                    {language === 'te' ? log.detailsTe : log.details}
+                  </p>
+                  <div className="mt-2 text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                    <span>{language === 'te' ? 'నిర్వహించిన వారు' : 'Performed By'}:</span>
+                    <span className="text-slate-700 font-extrabold">{log.performedByName}</span>
+                    <span className="text-slate-400 font-mono">({log.performedByEmail})</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

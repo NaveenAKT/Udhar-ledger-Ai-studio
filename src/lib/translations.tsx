@@ -441,7 +441,7 @@ const LanguageContext = React.createContext<LanguageContextValue | undefined>(un
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<LanguageType>(() => {
     const saved = localStorage.getItem('udhar_ledger_lang');
-    return (saved as LanguageType) === 'en' ? 'en' : 'te';
+    return (saved as LanguageType) === 'te' ? 'te' : 'en';
   });
 
   const setLanguage = (lang: LanguageType) => {

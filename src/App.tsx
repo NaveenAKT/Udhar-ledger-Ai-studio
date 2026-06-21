@@ -38,7 +38,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   // Layout navigation states
-  const [activeTab, setActiveTab] = useState<'customers' | 'shops' | 'automation' | 'transactions' | 'audit'>('customers');
+  const [activeTab, setActiveTab] = useState<'customers' | 'shops' | 'transactions' | 'audit'>('customers');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   
   // Dialog / Modal toggles
@@ -446,6 +446,86 @@ export default function App() {
     return customers.find(c => c.id === selectedCustomer.id) || selectedCustomer;
   }, [customers, selectedCustomer]);
 
+  // 1. ACL Check: If they have no shop access AND not superuser, they can't see any customers
+  const visibleCustomers = useMemo(() => {
+    if (!user) return [];
+    const isSuper = user.email === 'naveenkumar31343@gmail.com';
+    if (isSuper) return customers;
+    
+    // Check if they have access to at least 1 shop
+    if (shops.length === 0) {
+      return [];
+    }
+    return customers;
+  }, [customers, shops, user]);
+
+  // 2. Customers added to their shop
+  const customersAddedToMyShop = useMemo(() => {
+    if (!user) return new Set<string>();
+    const isSuper = user.email === 'naveenkumar31343@gmail.com';
+    if (isSuper) {
+      return new Set<string>(customers.map(c => c.id));
+    }
+    
+    const myShopIds = new Set(shops.map(s => s.id));
+    const addedCustomerIds = new Set<string>();
+    
+    // Any customer this user registered/owns:
+    customers.forEach(c => {
+      if (c.ownerId === user.uid) {
+        addedCustomerIds.add(c.id);
+      }
+    });
+    
+    // Any customer that has at least one transaction in one of my shops:
+    transactions.forEach(tx => {
+      if (myShopIds.has(tx.shopId)) {
+        addedCustomerIds.add(tx.customerId);
+      }
+    });
+    
+    return addedCustomerIds;
+  }, [customers, transactions, shops, user]);
+
+  // 3. Filtered transactions based on ACL (only transactions of customers added to my shop)
+  const visibleTransactions = useMemo(() => {
+    if (!user) return [];
+    const isSuper = user.email === 'naveenkumar31343@gmail.com';
+    if (isSuper) return transactions;
+    
+    return transactions.filter(tx => customersAddedToMyShop.has(tx.customerId));
+  }, [transactions, customersAddedToMyShop, user]);
+
+  // 4. Secure Shop-Specific Audit Trail Filter based on associated shops
+  const visibleAuditLogs = useMemo(() => {
+    if (!user) return [];
+    const isSuper = user.email === 'naveenkumar31343@gmail.com';
+    if (isSuper) return auditLogs;
+
+    const myShopIds = new Set(shops.map(s => s.id));
+    const allowedCustomerIds = customersAddedToMyShop;
+
+    return auditLogs.filter(log => {
+      // If it's a Shop log, it must be for one of my shops
+      if (log.itemType === 'Shop') {
+        return myShopIds.has(log.itemId);
+      }
+      // If it's a Transaction log, its associated transaction should be in one of my shops or belong to my customers
+      if (log.itemType === 'Transaction') {
+        const tx = transactions.find(t => t.id === log.itemId);
+        if (tx) {
+          return myShopIds.has(tx.shopId) || allowedCustomerIds.has(tx.customerId);
+        }
+        return log.performedById === user.uid;
+      }
+      // If it's a Customer log, it must be one of my allowed customers
+      if (log.itemType === 'Customer') {
+        return allowedCustomerIds.has(log.itemId);
+      }
+      return log.performedById === user.uid;
+    });
+  }, [auditLogs, shops, customersAddedToMyShop, transactions, user]);
+
   // Determine user role tag
   const userRoleTag = useMemo(() => {
     if (!user) return "";
@@ -530,7 +610,7 @@ export default function App() {
               className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-lg text-xs font-semibold tracking-wide transition border border-gray-200 cursor-pointer shadow-2xs mr-1 leading-none"
             >
               <Languages className="w-3.5 h-3.5 text-emerald-650 shrink-0" />
-              <span>{language === 'te' ? 'English' : 'తెలుగు'}</span>
+              <span>{language === 'te' ? 'Switch to English' : 'Switch to Telugu'}</span>
             </button>
 
             <div className="hidden sm:flex flex-col text-right">
@@ -616,27 +696,15 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => { setActiveTab('automation'); setSelectedCustomer(null); }}
-                className={`px-4 py-2 rounded-lg text-xs font-black tracking-tight transition cursor-pointer flex items-center gap-2 ${
-                  activeTab === 'automation' 
-                    ? 'bg-white text-emerald-800 shadow-2xs border border-gray-200' 
-                    : 'text-slate-500 hover:text-slate-905'
-                }`}
-              >
-                <Cpu className="w-3.5 h-3.5 text-emerald-600" />
-                {t.tabAutomation}
-              </button>
-
-              <button
                 onClick={() => { setActiveTab('audit'); setSelectedCustomer(null); }}
                 className={`px-4 py-2 rounded-lg text-xs font-black tracking-tight transition cursor-pointer flex items-center gap-2 ${
                   activeTab === 'audit' 
                     ? 'bg-white text-emerald-800 shadow-2xs border border-gray-200' 
-                    : 'text-slate-500 hover:text-slate-905'
+                    : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 <History className="w-3.5 h-3.5 text-emerald-600" />
-                {t.tabAudit || 'Change History'}
+                {t.tabAudit}
               </button>
             </div>
             
@@ -672,9 +740,10 @@ export default function App() {
               {synchronizedSelectedCustomer ? (
                 <CustomerProfile
                   customer={synchronizedSelectedCustomer}
-                  transactions={transactions}
+                  transactions={visibleTransactions}
                   shops={shops}
                   currentUser={user}
+                  auditLogs={visibleAuditLogs}
                   onBack={() => setSelectedCustomer(null)}
                   onAddTransaction={handleAddTransactionAction}
                   onUpdateTransaction={handleUpdateTransactionAction}
@@ -685,8 +754,8 @@ export default function App() {
                 <>
                   {activeTab === 'customers' && (
                     <CustomerDirectory
-                      customers={customers}
-                      transactions={transactions}
+                      customers={visibleCustomers}
+                      transactions={visibleTransactions}
                       currentUser={user}
                       onSelectCustomer={setSelectedCustomer}
                       onAddCustomerClick={() => setShowAddCustomerModal(true)}
@@ -697,11 +766,11 @@ export default function App() {
 
                   {activeTab === 'transactions' && (
                     <MerchantTransactions
-                      transactions={transactions}
-                      customers={customers}
+                      transactions={visibleTransactions}
+                      customers={visibleCustomers}
                       shops={shops}
                       currentUser={user}
-                      auditLogs={auditLogs}
+                      auditLogs={visibleAuditLogs}
                       onSelectCustomer={setSelectedCustomer}
                       onUpdateTransaction={handleUpdateTransactionAction}
                       onDeleteTransaction={handleDeleteTransactionAction}
@@ -709,24 +778,11 @@ export default function App() {
                     />
                   )}
 
-                  {activeTab === 'audit' && (
-                    <MerchantTransactions
-                      transactions={transactions}
-                      customers={customers}
-                      shops={shops}
-                      currentUser={user}
-                      auditLogs={auditLogs}
-                      onSelectCustomer={setSelectedCustomer}
-                      onUpdateTransaction={handleUpdateTransactionAction}
-                      onDeleteTransaction={handleDeleteTransactionAction}
-                      initialSubTab="audit"
-                    />
-                  )}
-
                   {activeTab === 'shops' && (
                     <ShopRegistry
                       shops={shops}
-                      transactions={transactions}
+                      transactions={visibleTransactions}
+                      auditLogs={visibleAuditLogs}
                       onAddShop={handleAddShopAction}
                       onUpdateShop={handleUpdateShopAction}
                       onDeleteShop={handleDeleteShopAction}
@@ -737,14 +793,17 @@ export default function App() {
                     />
                   )}
 
-                  {activeTab === 'automation' && (
-                    <BackgroundAutomation
-                      transactions={transactions}
-                      customers={customers}
+                  {activeTab === 'audit' && (
+                    <MerchantTransactions
+                      transactions={visibleTransactions}
+                      customers={visibleCustomers}
                       shops={shops}
-                      monthlyLogs={monthlyLogs}
-                      onAddMonthlyLog={handleAddMonthlyLogAction}
-                      isFirebaseActive={isFirebaseActive}
+                      currentUser={user}
+                      auditLogs={visibleAuditLogs}
+                      onSelectCustomer={setSelectedCustomer}
+                      onUpdateTransaction={handleUpdateTransactionAction}
+                      onDeleteTransaction={handleDeleteTransactionAction}
+                      initialSubTab="audit"
                     />
                   )}
                 </>
@@ -757,7 +816,7 @@ export default function App() {
       {/* Customer Registration Dialog overlay */}
       {showAddCustomerModal && (
         <div id="customer-modal-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[80]">
-          <div id="customer-modal-card" className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-gray-100 animate-in fade-in zoom-in duration-200">
+          <div id="customer-modal-card" className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-gray-150 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <h3 className="font-bold text-slate-905 text-base flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-emerald-600" />
@@ -860,18 +919,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* Premium Theme Dark Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-6 px-4 md:px-8 text-xs font-mono shrink-0 flex flex-col md:flex-row justify-between items-center gap-3 border-t border-slate-950 mt-auto">
-        <div className="flex items-center gap-1.5 font-bold">
-          <span>{t.cloudRunStatusLabel}</span>
-          <span className="text-emerald-500 animate-pulse">{t.cloudRunLiveMode}</span>
-          <span className="text-slate-500">{t.cloudRunScheduled}</span>
-        </div>
-        <div className="text-center md:text-right font-bold">
-          <span>{t.footerBrandInfo}</span>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -39,17 +39,38 @@ let db: any = null;
 let auth: any = null;
 let isFirebaseActive = false;
 
+// Dynamically construct Firebase configuration, favoring environment variables for external deployment
+// (like Vercel, Netlify, or Github Pages) with the auto-generated workspace config as a fallback.
+const metaEnv = (import.meta as any).env || {};
+const resolvedConfig = {
+  apiKey: metaEnv.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
+  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
+  appId: metaEnv.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+  measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID || firebaseConfig.measurementId,
+  firestoreDatabaseId: metaEnv.VITE_FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId,
+};
+
 // Check if firebase configuration has been set up with actual values
-const hasConfig = firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== '' && !firebaseConfig.apiKey.includes('MY_GEMINI_API_KEY');
+const hasConfig = resolvedConfig && resolvedConfig.apiKey && resolvedConfig.apiKey !== '' && !resolvedConfig.apiKey.includes('MY_GEMINI_API_KEY');
 
 if (hasConfig) {
   try {
     if (getApps().length === 0) {
-      app = initializeApp(firebaseConfig);
+      app = initializeApp(resolvedConfig);
     } else {
       app = getApps()[0];
     }
-    db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    
+    // Support either custom Firestore database instances or the default database instance
+    if (resolvedConfig.firestoreDatabaseId && resolvedConfig.firestoreDatabaseId !== "" && resolvedConfig.firestoreDatabaseId !== "(default)") {
+      db = getFirestore(app, resolvedConfig.firestoreDatabaseId);
+    } else {
+      db = getFirestore(app);
+    }
+    
     auth = getAuth(app);
     isFirebaseActive = true;
     console.log('Firebase initialized successfully connection verified!');
