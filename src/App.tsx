@@ -64,7 +64,7 @@ export default function App() {
   // Initialize Auth Sync (Active Firebase Auth or local memory auth loader)
   useEffect(() => {
     if (isFirebaseActive && auth) {
-      const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      const unsub = onAuthStateChanged(auth, (fbUser) => {
         if (fbUser) {
           const u: LedgerUser = {
             uid: fbUser.uid,
@@ -73,18 +73,17 @@ export default function App() {
             photoURL: fbUser.photoURL
           };
           setUser(u);
-          try {
-            const store = getStore(fbUser.uid, fbUser.email || undefined);
-            await store.saveMerchant({
-              uid: fbUser.uid,
-              email: fbUser.email,
-              displayName: fbUser.displayName,
-              photoURL: fbUser.photoURL,
-              createdAt: new Date().toISOString()
-            });
-          } catch (e) {
-            console.error("Failed to register merchant profile: ", e);
-          }
+          // Run saveMerchant in the background without blocking the auth/loading screen
+          const store = getStore(fbUser.uid, fbUser.email || undefined);
+          store.saveMerchant({
+            uid: fbUser.uid,
+            email: fbUser.email,
+            displayName: fbUser.displayName,
+            photoURL: fbUser.photoURL,
+            createdAt: new Date().toISOString()
+          }).catch((e) => {
+            console.error("Failed to register merchant profile in background: ", e);
+          });
         } else {
           setUser(null);
         }
@@ -174,25 +173,30 @@ export default function App() {
     try {
       const store = getStore(user.uid, user.email || undefined);
       const generatedIdVal = generateId();
-      await store.addCustomer({
-        id: generatedIdVal,
-        name: custName.trim(),
-        phone: custPhone.trim(),
-        email: custEmail.trim(),
-        village: custVillage.trim(),
-        mandal: custMandal.trim(),
-      });
-      await store.addAuditLog({
-        actionType: 'CREATE_CUSTOMER',
-        itemType: 'Customer',
-        itemId: generatedIdVal,
-        itemDisplayName: custName.trim(),
-        details: `Created customer "${custName.trim()}" with phone ${custPhone.trim()}`,
-        detailsTe: `కస్టమర్ "${custName.trim()}" (ఫోన్: ${custPhone.trim()}) సృష్టించబడింది`,
-        performedByEmail: user.email || "",
-        performedByName: user.displayName || user.email || "System/Merchant",
-        performedByUid: user.uid,
-      });
+      
+      // Parallelize customer creation and audit log creation for faster writes
+      await Promise.all([
+        store.addCustomer({
+          id: generatedIdVal,
+          name: custName.trim(),
+          phone: custPhone.trim(),
+          email: custEmail.trim(),
+          village: custVillage.trim(),
+          mandal: custMandal.trim(),
+        }),
+        store.addAuditLog({
+          actionType: 'CREATE_CUSTOMER',
+          itemType: 'Customer',
+          itemId: generatedIdVal,
+          itemDisplayName: custName.trim(),
+          details: `Created customer "${custName.trim()}" with phone ${custPhone.trim()}`,
+          detailsTe: `కస్టమర్ "${custName.trim()}" (ఫోన్: ${custPhone.trim()}) సృష్టించబడింది`,
+          performedByEmail: user.email || "",
+          performedByName: user.displayName || user.email || "System/Merchant",
+          performedByUid: user.uid,
+        })
+      ]);
+
       setCustName('');
       setCustPhone('');
       setCustEmail('');
@@ -210,18 +214,20 @@ export default function App() {
   const handleUpdateCustomerAction = async (customerId: string, name: string, phone: string, email: string, village?: string, mandal?: string) => {
     if (!user) return;
     const store = getStore(user.uid, user.email || undefined);
-    await store.updateCustomer(customerId, name, phone, email, village, mandal);
-    await store.addAuditLog({
-      actionType: 'UPDATE_CUSTOMER',
-      itemType: 'Customer',
-      itemId: customerId,
-      itemDisplayName: name,
-      details: `Updated details of customer "${name}"`,
-      detailsTe: `కస్టమర్ "${name}" వివరాలు సవరించబడ్డాయి`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    await Promise.all([
+      store.updateCustomer(customerId, name, phone, email, village, mandal),
+      store.addAuditLog({
+        actionType: 'UPDATE_CUSTOMER',
+        itemType: 'Customer',
+        itemId: customerId,
+        itemDisplayName: name,
+        details: `Updated details of customer "${name}"`,
+        detailsTe: `కస్టమర్ "${name}" వివరాలు సవరించబడ్డాయి`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
@@ -230,18 +236,20 @@ export default function App() {
     const store = getStore(user.uid, user.email || undefined);
     const cust = customers.find(c => c.id === customerId);
     const custNameVal = cust ? cust.name : "Unknown/Deleted";
-    await store.deleteCustomer(customerId);
-    await store.addAuditLog({
-      actionType: 'DELETE_CUSTOMER',
-      itemType: 'Customer',
-      itemId: customerId,
-      itemDisplayName: custNameVal,
-      details: `Deleted customer "${custNameVal}"`,
-      detailsTe: `కస్టమర్ "${custNameVal}" తొలగించబడింది`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    await Promise.all([
+      store.deleteCustomer(customerId),
+      store.addAuditLog({
+        actionType: 'DELETE_CUSTOMER',
+        itemType: 'Customer',
+        itemId: customerId,
+        itemDisplayName: custNameVal,
+        details: `Deleted customer "${custNameVal}"`,
+        detailsTe: `కస్టమర్ "${custNameVal}" తొలగించబడింది`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
@@ -249,41 +257,45 @@ export default function App() {
     if (!user) return;
     const store = getStore(user.uid, user.email || undefined);
     const shopId = generateId();
-    await store.addShop({
-      id: shopId,
-      name,
-      phone,
-      address
-    });
-    await store.addAuditLog({
-      actionType: 'CREATE_SHOP',
-      itemType: 'Shop',
-      itemId: shopId,
-      itemDisplayName: name,
-      details: `Registered new shop "${name}" at "${address}"`,
-      detailsTe: `కొత్త షాపు "${name}" (${address}) నమోదు చేయబడింది`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    await Promise.all([
+      store.addShop({
+        id: shopId,
+        name,
+        phone,
+        address
+      }),
+      store.addAuditLog({
+        actionType: 'CREATE_SHOP',
+        itemType: 'Shop',
+        itemId: shopId,
+        itemDisplayName: name,
+        details: `Registered new shop "${name}" at "${address}"`,
+        detailsTe: `కొత్త షాపు "${name}" (${address}) నమోదు చేయబడింది`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
   const handleUpdateShopAction = async (shopId: string, name: string, phone: string, address: string) => {
     if (!user) return;
     const store = getStore(user.uid, user.email || undefined);
-    await store.updateShop(shopId, name, phone, address);
-    await store.addAuditLog({
-      actionType: 'UPDATE_SHOP',
-      itemType: 'Shop',
-      itemId: shopId,
-      itemDisplayName: name,
-      details: `Updated details of shop "${name}"`,
-      detailsTe: `షాపు "${name}" వివరాలు సవరించబడ్డాయి`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    await Promise.all([
+      store.updateShop(shopId, name, phone, address),
+      store.addAuditLog({
+        actionType: 'UPDATE_SHOP',
+        itemType: 'Shop',
+        itemId: shopId,
+        itemDisplayName: name,
+        details: `Updated details of shop "${name}"`,
+        detailsTe: `షాపు "${name}" వివరాలు సవరించబడ్డాయి`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
@@ -292,18 +304,20 @@ export default function App() {
     const store = getStore(user.uid, user.email || undefined);
     const s = shops.find(sh => sh.id === shopId);
     const shopNameVal = s ? s.name : "Unknown/Deleted";
-    await store.deleteShop(shopId);
-    await store.addAuditLog({
-      actionType: 'DELETE_SHOP',
-      itemType: 'Shop',
-      itemId: shopId,
-      itemDisplayName: shopNameVal,
-      details: `Deleted shop "${shopNameVal}"`,
-      detailsTe: `షాపు "${shopNameVal}" తొలగించబడింది`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    await Promise.all([
+      store.deleteShop(shopId),
+      store.addAuditLog({
+        actionType: 'DELETE_SHOP',
+        itemType: 'Shop',
+        itemId: shopId,
+        itemDisplayName: shopNameVal,
+        details: `Deleted shop "${shopNameVal}"`,
+        detailsTe: `షాపు "${shopNameVal}" తొలగించబడింది`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
@@ -312,18 +326,20 @@ export default function App() {
     const store = getStore(user.uid, user.email || undefined);
     const s = shops.find(sh => sh.id === shopId);
     const shopNameVal = s ? s.name : "Unknown";
-    await store.updateShopCollaborators(shopId, emails, uids);
-    await store.addAuditLog({
-      actionType: 'COLLABORATOR_CHANGE',
-      itemType: 'Shop',
-      itemId: shopId,
-      itemDisplayName: shopNameVal,
-      details: `Updated collaborators of shop "${shopNameVal}" to [${emails.join(', ')}]`,
-      detailsTe: `షాపు "${shopNameVal}" కొలాబరేటర్లు [${emails.join(', ')}] కి సవరించబడ్డాయి`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    await Promise.all([
+      store.updateShopCollaborators(shopId, emails, uids),
+      store.addAuditLog({
+        actionType: 'COLLABORATOR_CHANGE',
+        itemType: 'Shop',
+        itemId: shopId,
+        itemDisplayName: shopNameVal,
+        details: `Updated collaborators of shop "${shopNameVal}" to [${emails.join(', ')}]`,
+        detailsTe: `షాపు "${shopNameVal}" కొలాబరేటర్లు [${emails.join(', ')}] కి సవరించబడ్డాయి`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
@@ -344,27 +360,29 @@ export default function App() {
     if (!user || !selectedCustomer) return;
     const store = getStore(user.uid, user.email || undefined);
     const txId = generateId();
-    await store.addTransaction({
-      id: txId,
-      customerId: selectedCustomer.id,
-      customerName: selectedCustomer.name,
-      shopId,
-      shopName,
-      amount,
-      status: 'Unpaid',
-      notes
-    });
-    await store.addAuditLog({
-      actionType: 'CREATE_TX',
-      itemType: 'Transaction',
-      itemId: txId,
-      itemDisplayName: selectedCustomer.name,
-      details: `Created transaction of ₹${amount} for customer "${selectedCustomer.name}" at shop "${shopName}"`,
-      detailsTe: `కస్టమర్ "${selectedCustomer.name}" కోసం ₹${amount} లావాదేవీ షాప్ "${shopName}" లో సృష్టించబడింది`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    await Promise.all([
+      store.addTransaction({
+        id: txId,
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        shopId,
+        shopName,
+        amount,
+        status: 'Unpaid',
+        notes
+      }),
+      store.addAuditLog({
+        actionType: 'CREATE_TX',
+        itemType: 'Transaction',
+        itemId: txId,
+        itemDisplayName: selectedCustomer.name,
+        details: `Created transaction of ₹${amount} for customer "${selectedCustomer.name}" at shop "${shopName}"`,
+        detailsTe: `కస్టమర్ "${selectedCustomer.name}" కోసం ₹${amount} లావాదేవీ షాప్ "${shopName}" లో సృష్టించబడింది`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
@@ -374,7 +392,6 @@ export default function App() {
     const tx = transactions.find(t => t.id === txId);
     const customerNameVal = tx ? tx.customerName : "Unknown Client";
     const shopNameVal = tx ? tx.shopName : "Unknown Shop";
-    await store.updateTransaction(txId, updates);
     
     let changeDetails = [];
     let changeDetailsTe = [];
@@ -393,17 +410,20 @@ export default function App() {
     const detailsStr = changeDetails.length > 0 ? `, ${changeDetails.join(' & ')}` : '';
     const detailsStrTe = changeDetailsTe.length > 0 ? `, ${changeDetailsTe.join(' & ')}` : '';
 
-    await store.addAuditLog({
-      actionType: 'UPDATE_TX',
-      itemType: 'Transaction',
-      itemId: txId,
-      itemDisplayName: customerNameVal,
-      details: `Updated transaction of customer "${customerNameVal}" at shop "${shopNameVal}"${detailsStr}`,
-      detailsTe: `షాప్ "${shopNameVal}" లో కస్టమర్ "${customerNameVal}" లావాదేవీ సవరించబడింది${detailsStrTe}`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    await Promise.all([
+      store.updateTransaction(txId, updates),
+      store.addAuditLog({
+        actionType: 'UPDATE_TX',
+        itemType: 'Transaction',
+        itemId: txId,
+        itemDisplayName: customerNameVal,
+        details: `Updated transaction of customer "${customerNameVal}" at shop "${shopNameVal}"${detailsStr}`,
+        detailsTe: `షాప్ "${shopNameVal}" లో కస్టమర్ "${customerNameVal}" లావాదేవీ సవరించబడింది${detailsStrTe}`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
@@ -414,18 +434,21 @@ export default function App() {
     const customerNameVal = tx ? tx.customerName : "Unknown Client";
     const shopNameVal = tx ? tx.shopName : "Unknown Shop";
     const amountVal = tx ? tx.amount : 0;
-    await store.deleteTransaction(txId);
-    await store.addAuditLog({
-      actionType: 'DELETE_TX',
-      itemType: 'Transaction',
-      itemId: txId,
-      itemDisplayName: customerNameVal,
-      details: `Deleted transaction of ₹${amountVal} for customer "${customerNameVal}" from shop "${shopNameVal}"`,
-      detailsTe: `కస్టమర్ "${customerNameVal}" యొక్క ₹${amountVal} లావాదేవీ షాప్ "${shopNameVal}" నుండి తొలగించబడింది`,
-      performedByEmail: user.email || "",
-      performedByName: user.displayName || user.email || "System",
-      performedByUid: user.uid
-    });
+    
+    await Promise.all([
+      store.deleteTransaction(txId),
+      store.addAuditLog({
+        actionType: 'DELETE_TX',
+        itemType: 'Transaction',
+        itemId: txId,
+        itemDisplayName: customerNameVal,
+        details: `Deleted transaction of ₹${amountVal} for customer "${customerNameVal}" from shop "${shopNameVal}"`,
+        detailsTe: `కస్టమర్ "${customerNameVal}" యొక్క ₹${amountVal} లావాదేవీ షాప్ "${shopNameVal}" నుండి తొలగించబడింది`,
+        performedByEmail: user.email || "",
+        performedByName: user.displayName || user.email || "System",
+        performedByUid: user.uid
+      })
+    ]);
     await loadLedgerData(user.uid, user.email);
   };
 
