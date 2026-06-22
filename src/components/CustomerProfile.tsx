@@ -566,16 +566,9 @@ export default function CustomerProfile({
                     : 'bg-amber-50/15 border-amber-100 hover:border-amber-250'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2.5">
+                <div className="flex items-center justify-between gap-1">
                   <span className="font-extrabold text-slate-800 text-sm truncate" title={item.shopName}>
                     {item.shopName}
-                  </span>
-                  <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                    item.isMyShop 
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                      : 'bg-amber-100 text-amber-800 border border-amber-100'
-                  }`}>
-                    {item.isMyShop ? (language === 'te' ? 'మీ దుకాణం' : 'My Shop') : (language === 'te' ? 'ఇతర దుకాణం' : 'Other Shop')}
                   </span>
                 </div>
                 <div className="mt-4 flex items-baseline justify-between pt-2 border-t border-dashed border-slate-100">
@@ -717,14 +710,16 @@ export default function CustomerProfile({
                           </div>
                         ) : (
                           <div className="inline-flex gap-2">
-                            <button
-                              id={`edit-tx-btn-${tx.id}`}
-                              onClick={() => startEditTx(tx)}
-                              className="p-1 px-2 border border-gray-250 bg-white hover:bg-gray-50 text-gray-700 rounded text-[11px] font-bold hover:border-emerald-500/30 transition flex items-center gap-1 cursor-pointer"
-                            >
-                              <FileEdit className="w-3.5 h-3.5 text-gray-400" />
-                              {t.actionEdit}
-                            </button>
+                            {tx.amount >= 0 && (
+                              <button
+                                id={`edit-tx-btn-${tx.id}`}
+                                onClick={() => startEditTx(tx)}
+                                className="p-1 px-2 border border-gray-250 bg-white hover:bg-gray-50 text-gray-700 rounded text-[11px] font-bold hover:border-emerald-500/30 transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <FileEdit className="w-3.5 h-3.5 text-gray-400" />
+                                {t.actionEdit}
+                              </button>
+                            )}
                             <button
                               id={`delete-tx-btn-${tx.id}`}
                               onClick={() => setConfirmDeleteId(tx.id)}

@@ -603,12 +603,14 @@ export default function MerchantTransactions({
                               >
                                 <History className="w-3 h-3 text-slate-500" />
                               </button>
-                              <button
-                                onClick={() => startEditTx(tx)}
-                                className="p-1 px-1.5 border border-gray-250 bg-white hover:bg-slate-50 text-gray-700 rounded text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
-                              >
-                                <FileEdit className="w-3 h-3 text-gray-400" />
-                              </button>
+                              {tx.amount >= 0 && (
+                                <button
+                                  onClick={() => startEditTx(tx)}
+                                  className="p-1 px-1.5 border border-gray-250 bg-white hover:bg-slate-50 text-gray-700 rounded text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                >
+                                  <FileEdit className="w-3 h-3 text-gray-400" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => setConfirmDeleteId(tx.id)}
                                 className="p-1 px-1.5 border border-red-100 bg-red-50 hover:bg-red-100 text-red-700 rounded text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
@@ -809,13 +811,15 @@ export default function MerchantTransactions({
                                     <History className="w-3.5 h-3.5 text-slate-500" />
                                     {language === 'te' ? 'చరిత్ర' : 'History'}
                                   </button>
-                                  <button
-                                    onClick={() => startEditTx(tx)}
-                                    className="p-1 px-2 border border-gray-250 bg-white hover:bg-slate-50 text-gray-700 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <FileEdit className="w-3.5 h-3.5 text-gray-400" />
-                                    {t.actionEdit || "సవరించు"}
-                                  </button>
+                                  {tx.amount >= 0 && (
+                                    <button
+                                      onClick={() => startEditTx(tx)}
+                                      className="p-1 px-2 border border-gray-250 bg-white hover:bg-slate-50 text-gray-700 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <FileEdit className="w-3.5 h-3.5 text-gray-400" />
+                                      {t.actionEdit || "సవరించు"}
+                                    </button>
+                                  )}
                                   <button
                                     onClick={() => setConfirmDeleteId(tx.id)}
                                     className="p-1 px-2 border border-red-100 bg-red-50 hover:bg-red-100 text-red-750 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"

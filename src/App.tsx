@@ -768,35 +768,35 @@ export default function App() {
   }
 
   return (
-    <div id="main-ledger-dashboard" className="min-h-screen bg-slate-50 flex flex-col text-slate-900">
+    <div id="main-ledger-dashboard" className="min-h-screen bg-slate-50 flex flex-col text-slate-900 max-w-full overflow-x-hidden">
       
       {/* Header Panel */}
-      <header className="bg-white border-b border-gray-200 shrink-0 sticky top-0 z-[60] shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-xs">
-              <BookOpenCheck className="w-5.5 h-5.5" />
+      <header className="bg-white border-b border-gray-200 shrink-0 sticky top-0 z-[60] shadow-xs max-w-full overflow-x-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-xs">
+              <BookOpenCheck className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
             </div>
-            <div>
-              <span className="font-extrabold text-base text-slate-905 tracking-tight block">{t.title}</span>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block -mt-0.5">
+            <div className="max-w-[120px] sm:max-w-none">
+              <span className="font-extrabold text-sm sm:text-base text-slate-905 tracking-tight block truncate">{t.title}</span>
+              <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-slate-400 block -mt-0.5 truncate">
                 {t.subtitle}
               </span>
             </div>
           </div>
 
           {/* User profile & Sign Out */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Run ACL Self-Test Button */}
             {isSuperUser && (
               <button
                 id="run-self-test-btn"
                 onClick={() => setShowSelfTestModal(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold tracking-wide transition border border-emerald-200 cursor-pointer shadow-2xs mr-1 leading-none"
+                className="flex items-center gap-1 px-1.5 py-1 sm:px-2.5 sm:py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-[10px] sm:text-xs font-bold tracking-wide transition border border-emerald-200 cursor-pointer shadow-2xs leading-none shrink-0"
                 title={language === 'te' ? 'భద్రత & ACL స్వయం రన్ పరీక్షా సదుపాయం' : 'Trigger Security & Access Protection Self-Test Sandbox'}
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>{language === 'te' ? 'భద్రతా స్వయం-పరీక్ష' : 'ACL Self-Test'}</span>
+                <span className="hidden md:inline">{language === 'te' ? 'భద్రతా స్వయం-పరీక్ష' : 'ACL Self-Test'}</span>
               </button>
             )}
 
@@ -804,10 +804,11 @@ export default function App() {
             <button
               id="language-switcher-btn"
               onClick={toggleLanguage}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-lg text-xs font-semibold tracking-wide transition border border-gray-200 cursor-pointer shadow-2xs mr-1 leading-none"
+              className="flex items-center gap-1 px-1.5 py-1 sm:px-2.5 sm:py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-lg text-[10px] sm:text-xs font-semibold tracking-wide transition border border-gray-200 cursor-pointer shadow-2xs leading-none shrink-0"
             >
               <Languages className="w-3.5 h-3.5 text-emerald-650 shrink-0" />
-              <span>{language === 'te' ? 'Switch to English' : 'Switch to Telugu'}</span>
+              <span className="hidden sm:inline">{language === 'te' ? 'English' : 'తెలుగు'}</span>
+              <span className="sm:hidden">{language === 'te' ? 'EN' : 'తె'}</span>
             </button>
 
             <div className="hidden sm:flex flex-col text-right">
