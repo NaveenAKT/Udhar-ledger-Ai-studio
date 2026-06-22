@@ -98,6 +98,9 @@ export default function CustomerProfile({
       if (t.status === 'Unpaid') {
         unpaidSum += t.amount;
         uniqueShops.add(t.shopId);
+        if (t.amount < 0) {
+          paidSum += Math.abs(t.amount);
+        }
       } else {
         paidSum += t.amount;
       }
@@ -342,33 +345,7 @@ export default function CustomerProfile({
         </div>
       )}
 
-      {/* Dynamic Add Debt Modal */}
-      {showAddModal && (
-        <div id="add-tx-modal-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[75]">
-          <div id="add-tx-modal-card" className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-gray-100 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b pb-3 mb-4">
-              <h3 className="font-bold text-gray-905 text-base flex items-center gap-2">
-                <BadgeDollarSign className="w-5 h-5 text-emerald-600" />
-                {t.logDebtFor}: {customer.name}
-              </h3>
-              <button 
-                onClick={() => setShowAddModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <AddDebtForm
-              customer={customer}
-              shops={shops}
-              transactions={transactions}
-              onSave={onAddTransaction}
-              onClose={() => setShowAddModal(false)}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Edit Transaction Modal */}
       {editingTransaction && (
@@ -404,18 +381,6 @@ export default function CustomerProfile({
                     editHasError ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200'
                   }`}
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1">{t.ledgerRecordStatus}</label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value as 'Paid' | 'Unpaid')}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800"
-                >
-                  <option value="Unpaid">{t.statusUnpaid}</option>
-                  <option value="Paid">{t.statusPaid}</option>
-                </select>
               </div>
 
               <div>
@@ -484,6 +449,32 @@ export default function CustomerProfile({
           </button>
         </div>
       </div>
+
+      {/* Dynamic Add Debt Inline Panel */}
+      {showAddModal && (
+        <div id="add-tx-inline-container" className="bg-white rounded-2xl border-2 border-emerald-500/80 p-6 shadow-md animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="flex items-center justify-between border-b pb-3 mb-4">
+            <h3 className="font-extrabold text-emerald-900 text-base flex items-center gap-2">
+              <BadgeDollarSign className="w-5 h-5 text-emerald-600" />
+              <span>{t.logDebtFor || "ਲਾਗ ਲਾਭ"}: <span className="text-gray-800 font-extrabold">{customer.name}</span></span>
+            </h3>
+            <button 
+              onClick={() => setShowAddModal(false)}
+              className="p-1 px-1.5 hover:bg-slate-150 text-gray-400 hover:text-gray-600 rounded-lg transition"
+            >
+              <X className="w-5 h-5" strokeWidth={2.5} />
+            </button>
+          </div>
+
+          <AddDebtForm
+            customer={customer}
+            shops={shops}
+            transactions={transactions}
+            onSave={onAddTransaction}
+            onClose={() => setShowAddModal(false)}
+          />
+        </div>
+      )}
 
       {/* Customer Meta Panel */}
       <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs grid grid-cols-1 md:grid-cols-3 gap-6">

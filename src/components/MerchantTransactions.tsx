@@ -133,6 +133,9 @@ export default function MerchantTransactions({
     accessibleTransactions.forEach(tx => {
       if (tx.status === 'Unpaid') {
         unpaidSum += tx.amount;
+        if (tx.amount < 0) {
+          paidSum += Math.abs(tx.amount);
+        }
       } else {
         paidSum += tx.amount;
       }
@@ -341,18 +344,6 @@ export default function MerchantTransactions({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-450 mb-1">{t.ledgerRecordStatus || "ఖాతా రికార్డ్ స్థితి"}</label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value as 'Paid' | 'Unpaid')}
-                  className="w-full bg-slate-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-805"
-                >
-                  <option value="Unpaid">{t.statusUnpaid || "Unpaid"}</option>
-                  <option value="Paid">{t.statusPaid || "Paid"}</option>
-                </select>
-              </div>
-
-              <div>
                 <label className="block text-xs font-bold text-slate-450 mb-1">{t.notesDetailsLabel || "లావాదేవీ వివరాలు / వస్తువులు"}</label>
                 <textarea
                   rows={3}
@@ -425,32 +416,7 @@ export default function MerchantTransactions({
         </div>
       </div>
 
-      {/* Analytics widgets */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-red-50/50 border border-red-100/50 rounded-2xl p-4 flex flex-col justify-between shadow-2xs">
-          <span className="text-[10px] font-bold text-red-700/80 uppercase tracking-wider block">{t.statActiveDebt || "మొత్తం యాక్టివ్ బకాయి (INR)"}</span>
-          <p className="text-2xl font-extrabold text-red-650 font-mono mt-2">
-            ₹{stats.unpaid.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <span className="text-[9px] font-bold text-red-555 mt-2 block">{t.statActiveDebtSub || "వివిధ కస్టమర్ల నుండి వసూలు కావాల్సిన మొత్తం"}</span>
-        </div>
 
-        <div className="bg-emerald-50/50 border border-emerald-100/40 rounded-2xl p-4 flex flex-col justify-between shadow-2xs">
-          <span className="text-[10px] font-bold text-emerald-700/80 uppercase tracking-wider block">{t.statSettledDebt || "మొత్తం వసూలైన బకాయి (INR)"}</span>
-          <p className="text-2xl font-extrabold text-emerald-650 font-mono mt-2">
-            ₹{stats.paid.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <span className="text-[9px] font-bold text-emerald-555 mt-2 block">{t.statSettledDebtSub || "ఇప్పటివరకు విజయవంతంగా చెల్లించబడిన రికార్డులు"}</span>
-        </div>
-
-        <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex flex-col justify-between shadow-2xs">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t.statTotalTxCount || "మొత్తం లావాదేవీల సంఖ్య"}</span>
-          <p className="text-2xl font-extrabold text-slate-800 font-mono mt-2">
-            {stats.totalCount} <span className="text-xs text-slate-400 font-semibold font-sans">{t.statTxLabel || "లావాదేవీలు"}</span>
-          </p>
-          <span className="text-[9px] font-bold text-slate-450 mt-2 block">{t.statTxCountSub || "డేటాబేస్ ఆడిట్ రికార్డుల మొత్తం వెసులుబాటు"}</span>
-        </div>
-      </div>
 
       {/* Filters Toolbar */}
       <div className="bg-white border border-gray-150 p-4 rounded-2xl shadow-xs space-y-3">
@@ -515,8 +481,7 @@ export default function MerchantTransactions({
       {subTab === 'ledger' ? (
         /* Main ledger table */
         <div id="ledger-grid-view" className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-xs">
-          <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-450 uppercase tracking-wider">{t.filteredScanHeader || "ఫిల్టర్ చేసిన స్కాన్ రికార్డులు"}</span>
+          <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-end">
             <span className="text-xs font-mono font-bold bg-gray-50 border border-gray-150 text-slate-500 px-3 py-1 rounded-md">
               {filteredAndSortedTx.length} {t.recordSuffix || "వసూళ్ళు భద్రపరిచాము"}
             </span>
@@ -531,219 +496,395 @@ export default function MerchantTransactions({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100 text-[10px] uppercase font-black text-gray-400 select-none">
-                    <th className="px-4 py-3.5 w-12 text-center"></th>
-                    <th className="px-6 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('date')}>
-                      <div className="flex items-center gap-1">
-                        {t.colDate || "తేదీ (Date)"}
-                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                      </div>
-                    </th>
-                    <th className="px-6 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('customer')}>
-                      <div className="flex items-center gap-1">
-                        {t.colCustomer || "కస్టమర్ (Customer)"}
-                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                      </div>
-                    </th>
-                    <th className="px-6 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('shop')}>
-                      <div className="flex items-center gap-1">
-                        {t.colShop || "దుకాణం (Shop)"}
-                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                      </div>
-                    </th>
-                    <th className="px-6 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors text-right" onClick={() => handleSort('amount')}>
-                      <div className="flex items-center justify-end gap-1">
-                        {t.colAmount || "మొత్తం (Amount)"}
-                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                      </div>
-                    </th>
-                    <th className="px-6 py-3.5 text-center">{t.colStatus || "స్థితి (Status)"}</th>
-                    <th className="px-6 py-3.5 text-right">{t.colActions || "చర్యలు (Actions)"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-xs font-semibold">
-                  {filteredAndSortedTx.map(tx => {
-                    const isUnpaid = tx.status === 'Unpaid';
-                    const isDeletingTarget = confirmDeleteId === tx.id;
-                    const isExpanded = !!expandedTxIds[tx.id];
-                    
-                    // Permitted editing logic: Super user has full permission. Co-owner handles based on access config
-                    const hasAccessToShop = isSuperUser || shops.some(s => s.id === tx.shopId);
+            <>
+              {/* MOBILE COMPACT LIST - Prevents horizontal overflow completely */}
+              <div className="block md:hidden divide-y divide-gray-150/60 max-w-full overflow-hidden">
+                {filteredAndSortedTx.map(tx => {
+                  const isUnpaid = tx.status === 'Unpaid';
+                  const isDeletingTarget = confirmDeleteId === tx.id;
+                  const isExpanded = !!expandedTxIds[tx.id];
+                  const hasAccessToShop = isSuperUser || shops.some(s => s.id === tx.shopId);
 
-                    return (
-                      <React.Fragment key={tx.id}>
-                        <tr id={`merchant-tx-row-${tx.id}`} className="hover:bg-slate-50/40 transition-colors border-b border-gray-50/60">
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            <button
-                              onClick={() => toggleTxExpand(tx.id)}
-                              className="p-1 hover:bg-slate-100 rounded-lg transition-all cursor-pointer inline-flex items-center justify-center"
-                              title={language === 'te' ? 'వివరాలు చూడటానికి క్లిక్ చేయండి' : 'Click to toggle details'}
-                            >
-                              <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                            </button>
-                          </td>
-                          <td className="px-6 py-4 font-mono text-gray-500 whitespace-nowrap cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
-                            {new Date(tx.createdAt).toLocaleDateString(language === 'te' ? 'te-IN' : 'en-IN', {
-                              year: 'numeric',
-                              month: '2-digit',
-                              day: '2-digit'
-                            })}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              onClick={() => handleNavigateToCustomer(tx.customerId, tx.customerName)}
-                              className="font-extrabold text-blue-650 hover:text-blue-805 hover:underline transition-all flex items-center gap-1 text-left cursor-pointer"
-                              title={t.customerProfileTip || "కస్టమర్ ప్రొఫైల్ లోపలికి వెళ్ళండి"}
-                            >
-                              <User className="w-3.5 h-3.5 text-blue-500" />
-                              {tx.customerName}
-                              <ExternalLink className="w-2.5 h-2.5 text-slate-350 opacity-0 group-hover:opacity-100 inline.block" />
-                            </button>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-slate-700 cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
-                            <div className="font-extrabold flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-350"></span>
-                              {tx.shopName}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 font-mono font-extrabold text-right whitespace-nowrap cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
-                            {tx.amount < 0 ? (
-                              <span className="text-blue-650">
-                                - ₹{Math.abs(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            ) : (
-                              <span className={isUnpaid ? 'text-red-650' : 'text-emerald-650'}>
-                                ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-center whitespace-nowrap cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black leading-none uppercase ${
-                              tx.amount < 0
-                                ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                                : isUnpaid
-                                  ? 'bg-red-50 text-red-700 border border-red-100'
-                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            }`}>
-                              {tx.amount < 0
-                                ? (language === 'te' ? 'జమ (payment)' : 'Payment')
-                                : isUnpaid
-                                  ? 'Unpaid'
-                                  : 'Settled'}
+                  return (
+                    <div key={tx.id} id={`mobile-tx-card-${tx.id}`} className="p-4 space-y-3.5 hover:bg-slate-50/20 transition-colors">
+                      {/* Customer name and Date */}
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          onClick={() => handleNavigateToCustomer(tx.customerId, tx.customerName)}
+                          className="font-extrabold text-blue-650 hover:text-blue-805 hover:underline text-xs flex items-center gap-1.5 cursor-pointer max-w-[65%] truncate text-left"
+                          title={t.customerProfileTip || "కస్టమర్ ప్రొఫైల్"}
+                        >
+                          <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <span className="truncate">{tx.customerName}</span>
+                        </button>
+                        <span className="font-mono text-[9px] text-gray-500 shrink-0 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded font-black uppercase">
+                          {new Date(tx.createdAt).toLocaleDateString(language === 'te' ? 'te-IN' : 'en-IN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                          })}
+                        </span>
+                      </div>
+
+                      {/* Shop Name & Amount */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[11px] font-bold text-slate-650 truncate flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                          <span className="truncate">{tx.shopName}</span>
+                        </div>
+                        <div className="font-mono font-black text-xs text-right shrink-0">
+                          {tx.amount < 0 ? (
+                            <span className="text-blue-650">
+                              - ₹{Math.abs(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
-                          </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap">
-                            {!hasAccessToShop ? (
-                              <span className="text-[10px] text-slate-400 font-bold bg-slate-50 border border-gray-150 px-2 py-1 rounded">
-                                {t.managedByPartner || "భాగస్వామి పరిధిలో ఉంది"}
-                              </span>
-                            ) : isDeletingTarget ? (
-                              <div className="inline-flex items-center gap-1.5 animate-in fade-in slide-in-from-right-2 duration-150">
-                                <span className="text-[10px] font-bold text-red-700 select-none mr-1">{t.confirmDeleteLabel || "తొలగించాలా?"}</span>
-                                <button
-                                  disabled={isDeleting}
-                                  onClick={() => setConfirmDeleteId(null)}
-                                  className="px-2 py-0.5 border border-gray-200 hover:bg-gray-50 text-gray-600 text-[10px] font-bold rounded cursor-pointer animate-none"
-                                >
-                                  {t.deleteNo || "రద్దు"}
-                                </button>
-                                <button
-                                  disabled={isDeleting}
-                                  onClick={() => handleTransactionDelete(tx.id)}
-                                  className="px-2 py-0.5 bg-red-650 hover:bg-red-750 text-white text-[10px] font-bold rounded flex items-center gap-1 cursor-pointer animate-none"
-                                >
-                                  {isDeleting && <Loader2 className="w-3 h-3 animate-spin" />}
-                                  {t.deleteYes || "అవును"}
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="inline-flex gap-1.5 font-bold">
-                                <button
+                          ) : (
+                            <span className={isUnpaid ? 'text-red-655 font-bold' : 'text-emerald-655 font-bold'}>
+                              ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Status / Toggle and Actions row */}
+                      <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-dashed border-gray-100">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black leading-none uppercase ${
+                            tx.amount < 0
+                              ? 'bg-blue-50 text-blue-700 border border-blue-105'
+                              : isUnpaid
+                                ? 'bg-red-50 text-red-700 border border-red-105'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-110'
+                          }`}>
+                            {tx.amount < 0
+                              ? (language === 'te' ? 'జమ (payment)' : 'Payment')
+                              : isUnpaid
+                                ? 'Unpaid'
+                                : 'Settled'}
+                          </span>
+                          <button
+                            onClick={() => toggleTxExpand(tx.id)}
+                            className="p-1 px-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-all cursor-pointer inline-flex items-center justify-center"
+                            title={language === 'te' ? 'వివరాలు' : 'Details'}
+                          >
+                            <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {!hasAccessToShop ? (
+                            <span className="text-[9px] text-slate-400 font-bold bg-slate-50 border border-gray-150 px-2 py-0.5 rounded">
+                              {t.managedByPartner || "భాగస్వామి పరిధిలో ఉంది"}
+                            </span>
+                          ) : isDeletingTarget ? (
+                            <div className="inline-flex items-center gap-1 animate-in fade-in slide-in-from-right-1 duration-150">
+                              <span className="text-[9px] font-black text-red-700 select-none mr-0.5 shrink-0">{t.confirmDeleteLabel || "తొలగించాలా?"}</span>
+                              <button
+                                disabled={isDeleting}
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="px-1.5 py-0.5 border border-gray-200 hover:bg-gray-50 text-gray-600 text-[9px] font-bold rounded cursor-pointer shrink-0"
+                              >
+                                {t.deleteNo || "రద్దు"}
+                              </button>
+                              <button
+                                disabled={isDeleting}
+                                onClick={() => handleTransactionDelete(tx.id)}
+                                className="px-1.5 py-0.5 bg-red-650 hover:bg-red-750 text-white text-[9px] font-bold rounded flex items-center gap-0.5 cursor-pointer shrink-0"
+                              >
+                                {isDeleting && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+                                {t.deleteYes || "అవును"}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="inline-flex gap-1">
+                              <button
+                                onClick={() => setInspectingTxId(tx.id)}
+                                className="p-1 px-1.5 border border-slate-205 bg-slate-50 hover:bg-slate-100 text-slate-750 rounded text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                title={language === 'te' ? 'చరిత్ర చరిత్ర' : 'History'}
+                              >
+                                <History className="w-3 h-3 text-slate-500" />
+                              </button>
+                              <button
+                                onClick={() => startEditTx(tx)}
+                                className="p-1 px-1.5 border border-gray-250 bg-white hover:bg-slate-50 text-gray-700 rounded text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <FileEdit className="w-3 h-3 text-gray-400" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(tx.id)}
+                                className="p-1 px-1.5 border border-red-100 bg-red-50 hover:bg-red-100 text-red-700 rounded text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3 text-red-650" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expandable region on Mobile */}
+                      {isExpanded && (
+                        <div className="mt-2.5 p-3.5 bg-slate-50/60 border border-slate-150 rounded-xl space-y-3.5 text-[11px] animate-in slide-in-from-top-1.5 duration-200">
+                          <div className="space-y-1">
+                            <span className="font-extrabold uppercase tracking-wider text-[9px] text-slate-400">
+                              {language === 'te' ? 'లావాదేవీ వివరాలు / వస్తువులు' : 'Transaction Notes & Details'}
+                            </span>
+                            <div className="bg-white p-2.5 border border-gray-150 rounded-lg whitespace-normal break-words min-h-[4rem] flex flex-col justify-between">
+                              <p className="text-slate-800 leading-relaxed font-semibold">
+                                {tx.notes || <span className="text-gray-300 italic">{language === 'te' ? 'వివరాలు లేవు' : 'No description logged'}</span>}
+                              </p>
+                              <div className="mt-2.5 pt-2 border-t border-gray-50 flex items-center justify-between text-[9px] text-slate-400">
+                                <span>ID: {tx.id}</span>
+                                <button 
                                   onClick={() => setInspectingTxId(tx.id)}
-                                  className="p-1 px-2 border border-slate-205 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
-                                  title={language === 'te' ? 'లావాదేవీ మార్పుల చరిత్రను చూపించు' : 'Click to see details change history of this transaction'}
+                                  className="text-blue-650 hover:underline cursor-pointer font-extrabold inline-flex items-center gap-0.5"
                                 >
-                                  <History className="w-3.5 h-3.5 text-slate-500" />
-                                  {language === 'te' ? 'చరిత్ర' : 'History'}
-                                </button>
-                                <button
-                                  onClick={() => startEditTx(tx)}
-                                  className="p-1 px-2 border border-gray-250 bg-white hover:bg-slate-50 text-gray-700 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
-                                >
-                                  <FileEdit className="w-3.5 h-3.5 text-gray-400" />
-                                  {t.actionEdit || "సవరించు"}
-                                </button>
-                                <button
-                                  onClick={() => setConfirmDeleteId(tx.id)}
-                                  className="p-1 px-2 border border-red-100 bg-red-50 hover:bg-red-100 text-red-750 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-red-650" />
-                                  {t.actionDelete || "తొలగించు"}
+                                  <History className="w-2.5 h-2.5" />
+                                  {language === 'te' ? 'పూర్తి చరిత్ర' : 'Audit Log'}
                                 </button>
                               </div>
-                            )}
-                          </td>
-                        </tr>
+                            </div>
+                          </div>
 
-                        {isExpanded && (
-                          <tr key={`expanded-${tx.id}`} className="bg-slate-50/45">
-                            <td colSpan={7} className="px-6 py-4 border-t border-gray-100/80 bg-slate-50/30">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-semibold text-slate-700 animate-in fade-in slide-in-from-top-1 duration-200">
-                                <div className="space-y-2">
-                                  <h5 className="font-extrabold uppercase tracking-wider text-[10px] text-slate-400 block mb-1">
-                                    {language === 'te' ? 'లావాదేవీ వివరాలు / వస్తువులు' : 'Transaction Notes & Details'}
-                                  </h5>
-                                  <div className="bg-white p-3 border border-gray-150 rounded-xl whitespace-normal break-words shadow-2xs min-h-[5rem] flex flex-col justify-between">
-                                    <p className="text-slate-800 leading-relaxed font-medium">
-                                      {tx.notes || <span className="text-gray-300 italic">{language === 'te' ? 'వివరాలు లేవు' : 'No description logged'}</span>}
-                                    </p>
-                                    <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between text-[10px] text-slate-400">
-                                      <span>ID: {tx.id}</span>
-                                      <button 
-                                        onClick={() => setInspectingTxId(tx.id)}
-                                        className="text-blue-650 hover:underline cursor-pointer font-bold inline-flex items-center gap-1"
-                                      >
-                                        <History className="w-3 h-3" />
-                                        {language === 'te' ? 'వివరణాత్మక మార్పుల చరిత్ర' : 'Detailed Audit Log'}
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
+                          <div className="space-y-1">
+                            <span className="font-extrabold uppercase tracking-wider text-[9px] text-slate-400">
+                              {language === 'te' ? 'ఆడిట్ మెటాడేటా రికార్డు' : 'Audit Metadata Records'}
+                            </span>
+                            <div className="bg-white p-2.5 border border-gray-150 rounded-lg space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-400 font-bold">{language === 'te' ? 'సృష్టించినది' : 'Created By'}</span>
+                                <span className="font-extrabold text-slate-800 text-right">
+                                  {tx.createdByName || 'System/Merchant'} 
+                                  <span className="block font-mono text-[8px] text-slate-400 font-bold">{tx.createdByEmail || ''}</span>
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-400 font-bold">{language === 'te' ? 'చివరి సవరణ' : 'Last Updated By'}</span>
+                                <span className="font-extrabold text-slate-800 text-right">
+                                  {tx.updatedByName || tx.createdByName || 'System/Merchant'} 
+                                  <span className="block font-mono text-[8px] text-slate-400 font-bold">{tx.updatedByEmail || tx.createdByEmail || ''}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
-                                <div className="space-y-2">
-                                  <h5 className="font-extrabold uppercase tracking-wider text-[10px] text-slate-400 block mb-1">
-                                    {language === 'te' ? 'ఆడిట్ మెటాడేటా రికార్డు' : 'Audit Metadata Records'}
-                                  </h5>
-                                  <div className="bg-white p-3 border border-gray-150 rounded-xl space-y-2.5 shadow-2xs">
-                                    <div className="flex items-center justify-between pb-1.5 border-b border-gray-50 last:border-0 last:pb-0">
-                                      <span className="text-slate-400">{language === 'te' ? 'సృష్టించినది' : 'Created By'}</span>
-                                      <span className="font-extrabold text-slate-800 text-right">
-                                        {tx.createdByName || 'System/Merchant'} 
-                                        <span className="block font-mono text-[9px] text-slate-400 font-bold">{tx.createdByEmail || ''}</span>
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center justify-between pb-1.5 border-b border-gray-50 last:border-0 last:pb-0">
-                                      <span className="text-slate-400">{language === 'te' ? 'చివరి సవరణ' : 'Last Updated By'}</span>
-                                      <span className="font-extrabold text-slate-800 text-right">
-                                        {tx.updatedByName || tx.createdByName || 'System/Merchant'} 
-                                        <span className="block font-mono text-[9px] text-slate-400 font-bold">{tx.updatedByEmail || tx.createdByEmail || ''}</span>
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
+              {/* DESKTOP VIEW - Only rendered on md screens and wider */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100 text-[10px] uppercase font-black text-gray-400 select-none">
+                      <th className="px-4 py-3.5 w-12 text-center"></th>
+                      <th className="px-6 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('date')}>
+                        <div className="flex items-center gap-1">
+                          {t.colDate || "తేదీ (Date)"}
+                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('customer')}>
+                        <div className="flex items-center gap-1">
+                          {t.colCustomer || "కస్టమర్ (Customer)"}
+                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('shop')}>
+                        <div className="flex items-center gap-1">
+                          {t.colShop || "దుకాణం (Shop)"}
+                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors text-right" onClick={() => handleSort('amount')}>
+                        <div className="flex items-center justify-end gap-1">
+                          {t.colAmount || "మొత్తం (Amount)"}
+                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-3.5 text-center">{t.colStatus || "స్థితి (Status)"}</th>
+                      <th className="px-6 py-3.5 text-right">{t.colActions || "చర్యలు (Actions)"}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-xs font-semibold">
+                    {filteredAndSortedTx.map(tx => {
+                      const isUnpaid = tx.status === 'Unpaid';
+                      const isDeletingTarget = confirmDeleteId === tx.id;
+                      const isExpanded = !!expandedTxIds[tx.id];
+                      const hasAccessToShop = isSuperUser || shops.some(s => s.id === tx.shopId);
+
+                      return (
+                        <React.Fragment key={tx.id}>
+                          <tr id={`merchant-tx-row-${tx.id}`} className="hover:bg-slate-50/40 transition-colors border-b border-gray-50/60">
+                            <td className="px-4 py-4 text-center whitespace-nowrap">
+                              <button
+                                onClick={() => toggleTxExpand(tx.id)}
+                                className="p-1 hover:bg-slate-100 rounded-lg transition-all cursor-pointer inline-flex items-center justify-center"
+                                title={language === 'te' ? 'వివరాలు చూడటానికి క్లిక్ చేయండి' : 'Click to toggle details'}
+                              >
+                                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+                            </td>
+                            <td className="px-6 py-4 font-mono text-gray-500 whitespace-nowrap cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
+                              {new Date(tx.createdAt).toLocaleDateString(language === 'te' ? 'te-IN' : 'en-IN', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit'
+                              })}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={() => handleNavigateToCustomer(tx.customerId, tx.customerName)}
+                                className="font-extrabold text-blue-650 hover:text-blue-805 hover:underline transition-all flex items-center gap-1 text-left cursor-pointer"
+                                title={t.customerProfileTip || "కస్టమర్ ప్రొఫైల్ లోపలికి వెళ్ళండి"}
+                              >
+                                <User className="w-3.5 h-3.5 text-blue-500" />
+                                {tx.customerName}
+                                <ExternalLink className="w-2.5 h-2.5 text-slate-350 opacity-0 group-hover:opacity-100 inline.block" />
+                              </button>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-slate-700 cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
+                              <div className="font-extrabold flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-350"></span>
+                                {tx.shopName}
                               </div>
                             </td>
+                            <td className="px-6 py-4 font-mono font-extrabold text-right whitespace-nowrap cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
+                              {tx.amount < 0 ? (
+                                <span className="text-blue-650">
+                                  - ₹{Math.abs(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              ) : (
+                                <span className={isUnpaid ? 'text-red-655' : 'text-emerald-655'}>
+                                  ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center whitespace-nowrap cursor-pointer" onClick={() => toggleTxExpand(tx.id)}>
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black leading-none uppercase ${
+                                tx.amount < 0
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                  : isUnpaid
+                                    ? 'bg-red-50 text-red-700 border border-red-100'
+                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                              }`}>
+                                {tx.amount < 0
+                                  ? (language === 'te' ? 'జమ (payment)' : 'Payment')
+                                  : isUnpaid
+                                    ? 'Unpaid'
+                                    : 'Settled'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right whitespace-nowrap">
+                              {!hasAccessToShop ? (
+                                <span className="text-[10px] text-slate-400 font-bold bg-slate-50 border border-gray-150 px-2 py-1 rounded">
+                                  {t.managedByPartner || "భాగస్వామి పరిధిలో ఉంది"}
+                                </span>
+                              ) : isDeletingTarget ? (
+                                <div className="inline-flex items-center gap-1.5 animate-in fade-in slide-in-from-right-2 duration-150">
+                                  <span className="text-[10px] font-bold text-red-700 select-none mr-1">{t.confirmDeleteLabel || "తొలగించాలా?"}</span>
+                                  <button
+                                    disabled={isDeleting}
+                                    onClick={() => setConfirmDeleteId(null)}
+                                    className="px-2 py-0.5 border border-gray-200 hover:bg-gray-50 text-gray-600 text-[10px] font-bold rounded cursor-pointer animate-none"
+                                  >
+                                    {t.deleteNo || "రద్దు"}
+                                  </button>
+                                  <button
+                                    disabled={isDeleting}
+                                    onClick={() => handleTransactionDelete(tx.id)}
+                                    className="px-2 py-0.5 bg-red-650 hover:bg-red-750 text-white text-[10px] font-bold rounded flex items-center gap-1 cursor-pointer animate-none"
+                                  >
+                                    {isDeleting && <Loader2 className="w-3 h-3 animate-spin" />}
+                                    {t.deleteYes || "అవును"}
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="inline-flex gap-1.5 font-bold">
+                                  <button
+                                    onClick={() => setInspectingTxId(tx.id)}
+                                    className="p-1 px-2 border border-slate-205 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                    title={language === 'te' ? 'లావాదేవీ మార్పుల చరిత్రను చూపించు' : 'Click to see details change history of this transaction'}
+                                  >
+                                    <History className="w-3.5 h-3.5 text-slate-500" />
+                                    {language === 'te' ? 'చరిత్ర' : 'History'}
+                                  </button>
+                                  <button
+                                    onClick={() => startEditTx(tx)}
+                                    className="p-1 px-2 border border-gray-250 bg-white hover:bg-slate-50 text-gray-700 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <FileEdit className="w-3.5 h-3.5 text-gray-400" />
+                                    {t.actionEdit || "సవరించు"}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteId(tx.id)}
+                                    className="p-1 px-2 border border-red-100 bg-red-50 hover:bg-red-100 text-red-750 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-red-650" />
+                                    {t.actionDelete || "తొలగించు"}
+                                  </button>
+                                </div>
+                              )}
+                            </td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+
+                          {isExpanded && (
+                            <tr key={`expanded-${tx.id}`} className="bg-slate-50/45">
+                              <td colSpan={7} className="px-6 py-4 border-t border-gray-100/80 bg-slate-50/30">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-semibold text-slate-700 animate-in fade-in slide-in-from-top-1 duration-200">
+                                  <div className="space-y-2">
+                                    <h5 className="font-extrabold uppercase tracking-wider text-[10px] text-slate-400 block mb-1">
+                                      {language === 'te' ? 'లావాదేవీ వివరాలు / వస్తువులు' : 'Transaction Notes & Details'}
+                                    </h5>
+                                    <div className="bg-white p-3 border border-gray-150 rounded-xl whitespace-normal break-words shadow-2xs min-h-[5rem] flex flex-col justify-between">
+                                      <p className="text-slate-800 leading-relaxed font-medium">
+                                        {tx.notes || <span className="text-gray-300 italic">{language === 'te' ? 'వివరాలు లేవు' : 'No description logged'}</span>}
+                                      </p>
+                                      <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between text-[10px] text-slate-400">
+                                        <span>ID: {tx.id}</span>
+                                        <button 
+                                          onClick={() => setInspectingTxId(tx.id)}
+                                          className="text-blue-650 hover:underline cursor-pointer font-bold inline-flex items-center gap-1"
+                                        >
+                                          <History className="w-3 h-3" />
+                                          {language === 'te' ? 'వివరణాత్మక మార్పుల చరిత్ర' : 'Detailed Audit Log'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <h5 className="font-extrabold uppercase tracking-wider text-[10px] text-slate-400 block mb-1">
+                                      {language === 'te' ? 'ఆడిట్ మెటాడేటా రికార్డు' : 'Audit Metadata Records'}
+                                    </h5>
+                                    <div className="bg-white p-3 border border-gray-150 rounded-xl space-y-2.5 shadow-2xs">
+                                      <div className="flex items-center justify-between pb-1.5 border-b border-gray-50 last:border-0 last:pb-0">
+                                        <span className="text-slate-400">{language === 'te' ? 'సృష్టించినది' : 'Created By'}</span>
+                                        <span className="font-extrabold text-slate-800 text-right">
+                                          {tx.createdByName || 'System/Merchant'} 
+                                          <span className="block font-mono text-[9px] text-slate-400 font-bold">{tx.createdByEmail || ''}</span>
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between pb-1.5 border-b border-gray-50 last:border-0 last:pb-0">
+                                        <span className="text-slate-400">{language === 'te' ? 'చివరి సవరణ' : 'Last Updated By'}</span>
+                                        <span className="font-extrabold text-slate-800 text-right">
+                                          {tx.updatedByName || tx.createdByName || 'System/Merchant'} 
+                                          <span className="block font-mono text-[9px] text-slate-400 font-bold">{tx.updatedByEmail || tx.createdByEmail || ''}</span>
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       ) : (

@@ -65,11 +65,11 @@ export class LocalLedgerStore implements LedgerStore {
     return this.getData<Shop>('shops');
   }
 
-  async addShop(shop: Omit<Shop, 'ownerId' | 'createdAt' | 'collaboratorIds' | 'collaboratorEmails'>): Promise<Shop> {
+  async addShop(shop: Omit<Shop, 'ownerId' | 'createdAt' | 'collaboratorIds' | 'collaboratorEmails'> & { ownerId?: string }): Promise<Shop> {
     const shops = this.getData<Shop>('shops');
     const newShop: Shop = {
       ...shop,
-      ownerId: this.userId,
+      ownerId: shop.ownerId || this.userId,
       createdAt: new Date().toISOString(),
       collaboratorIds: [],
       collaboratorEmails: []
@@ -347,12 +347,12 @@ export class FirebaseLedgerStore implements LedgerStore {
     }
   }
 
-  async addShop(shop: Omit<Shop, 'ownerId' | 'createdAt' | 'collaboratorIds' | 'collaboratorEmails'>): Promise<Shop> {
+  async addShop(shop: Omit<Shop, 'ownerId' | 'createdAt' | 'collaboratorIds' | 'collaboratorEmails'> & { ownerId?: string }): Promise<Shop> {
     const path = `shops/${shop.id}`;
     try {
       const newShop: Shop = {
         ...shop,
-        ownerId: this.userId,
+        ownerId: shop.ownerId || this.userId,
         createdAt: new Date().toISOString(),
         collaboratorIds: [],
         collaboratorEmails: []

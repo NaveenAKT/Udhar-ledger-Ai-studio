@@ -34,7 +34,7 @@ interface ShopRegistryProps {
   merchants?: Merchant[];
   transactions: Transaction[];
   auditLogs: AuditLogEntry[];
-  onAddShop: (name: string, phone: string, address: string, gstNumber: string) => Promise<void>;
+  onAddShop: (name: string, phone: string, address: string, gstNumber: string, ownerEmail: string) => Promise<void>;
   onUpdateShop: (shopId: string, name: string, phone: string, address: string, ownerId?: string) => Promise<void>;
   onDeleteShop: (shopId: string) => Promise<void>;
   currentUserId: string;
@@ -78,6 +78,7 @@ export default function ShopRegistry({
   const [newShopPhone, setNewShopPhone] = useState('');
   const [newShopAddress, setNewShopAddress] = useState('');
   const [newShopGst, setNewShopGst] = useState('');
+  const [newShopOwnerEmail, setNewShopOwnerEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shopError, setShopError] = useState('');
 
@@ -164,6 +165,11 @@ export default function ShopRegistry({
       return;
     }
 
+    if (isSuperUser && !newShopOwnerEmail.trim()) {
+      setShopError(language === 'te' ? 'యజమాని ఇమెయిల్ తప్పనిసరి!' : 'Owner Email is mandatory!');
+      return;
+    }
+
     const phoneClean = newShopPhone.trim().replace(/\D/g, '');
     if (phoneClean.length !== 10) {
       setShopError(language === 'te' ? 'మొబైల్ ఫోన్ నంబర్ ఖచ్చితంగా 10 అంకెలు మాత్రమే ఉండాలి!' : 'Phone number must be exactly 10 digits!');
@@ -172,11 +178,12 @@ export default function ShopRegistry({
 
     setIsSubmitting(true);
     try {
-      await onAddShop(newShopName.trim(), phoneClean, newShopAddress.trim(), newShopGst.trim());
+      await onAddShop(newShopName.trim(), phoneClean, newShopAddress.trim(), newShopGst.trim(), newShopOwnerEmail.trim());
       setNewShopName('');
       setNewShopPhone('');
       setNewShopAddress('');
       setNewShopGst('');
+      setNewShopOwnerEmail('');
       setShowAddForm(false);
     } catch (err) {
       console.error(err);
@@ -192,8 +199,8 @@ export default function ShopRegistry({
     setEditPhone(shop.phone);
     setEditAddress(shop.address);
     setEditOwnerError('');
-    const ownerMerch = merchants?.find(m => m.uid === shop.ownerId);
-    setEditOwnerEmail(ownerMerch?.email || '');
+    // Do not prefill owner email - keep it blank as per requirement
+    setEditOwnerEmail('');
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -205,7 +212,12 @@ export default function ShopRegistry({
     try {
       let ownerId: string | undefined = undefined;
       const isSuperUser = currentUserEmail === 'naveenkumar31343@gmail.com' || currentUserEmail === 'akuthota.rajkumar@gmail.com';
-      if (isSuperUser && editOwnerEmail.trim()) {
+      if (isSuperUser) {
+        if (!editOwnerEmail.trim()) {
+          setEditOwnerError(language === 'te' ? 'యజమాని ఇమెయిల్ తప్పనిసరి!' : 'Owner Email is mandatory!');
+          setIsSavingEdit(false);
+          return;
+        }
         const originalOwner = merchants?.find(m => m.uid === editingShop.ownerId);
         if (editOwnerEmail.trim() !== (originalOwner?.email || '')) {
           if (onGetMerchantByEmail) {
@@ -626,10 +638,13 @@ export default function ShopRegistry({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1">{t.shopPhoneLabel}</label>
+              <label className="block text-xs font-bold text-slate-400 mb-1">
+                {t.shopPhoneLabel} *
+              </label>
               <input
                 id="shop-phone-input"
                 type="text"
+                required
                 placeholder="ఉదా. 9848012345"
                 value={newShopPhone}
                 onChange={(e) => setNewShopPhone(e.target.value)}
@@ -664,6 +679,23 @@ export default function ShopRegistry({
               className="w-full bg-slate-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 font-semibold text-slate-900"
             />
           </div>
+
+          {isSuperUser && (
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">
+                {language === 'te' ? 'యజమాని ఇమెయిల్ (Owner Email) *' : 'Owner Email *'}
+              </label>
+              <input
+                id="shop-owner-email-input"
+                type="email"
+                required
+                placeholder="e.g. owner@gmail.com"
+                value={newShopOwnerEmail}
+                onChange={(e) => setNewShopOwnerEmail(e.target.value)}
+                className="w-full bg-slate-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 font-semibold text-slate-900"
+              />
+            </div>
+          )}
 
           {shopError && (
             <div className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-100">

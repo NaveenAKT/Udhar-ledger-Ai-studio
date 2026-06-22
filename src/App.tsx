@@ -333,13 +333,20 @@ export default function App() {
     await loadLedgerData(user.uid, user.email);
   };
 
-  const handleAddShopAction = async (name: string, phone: string, address: string, gstNumber: string) => {
+  const handleAddShopAction = async (name: string, phone: string, address: string, gstNumber: string, ownerEmail: string) => {
     if (!user) return;
     const isSuper = user.email === 'naveenkumar31343@gmail.com' || user.email === 'akuthota.rajkumar@gmail.com';
     if (!isSuper) {
       throw new Error("Only super users can register a merchant.");
     }
+    if (!ownerEmail || !ownerEmail.trim()) {
+      throw new Error(language === 'te' ? 'యజమాని ఇమెయిల్ తప్పనిసరి!' : 'Owner Email is mandatory!');
+    }
     const store = getStore(user.uid, user.email || undefined);
+    const merch = await store.getMerchantByEmail(ownerEmail.trim());
+    if (!merch) {
+      throw new Error(language === 'te' ? 'ఈ ఇమెయిల్ కలిగిన మర్చంట్ లభించలేదు.' : 'No merchant with this email address found.');
+    }
     const shopId = generateId();
     await Promise.all([
       store.addShop({
@@ -347,15 +354,16 @@ export default function App() {
         name,
         phone,
         address,
-        gstNumber
+        gstNumber,
+        ownerId: merch.uid
       }),
       store.addAuditLog({
         actionType: 'CREATE_SHOP',
         itemType: 'Shop',
         itemId: shopId,
         itemDisplayName: name,
-        details: `Registered new shop "${name}" at "${address}" with GST ${gstNumber}`,
-        detailsTe: `కొత్త షాపు "${name}" (${address}) GST ${gstNumber} తో నమోదు చేయబడింది`,
+        details: `Registered new shop "${name}" at "${address}" with GST ${gstNumber} and owner ${ownerEmail}`,
+        detailsTe: `కొత్త షాపు "${name}" (${address}) GST ${gstNumber} యజమాని ${ownerEmail} తో నమోదు చేయబడింది`,
         performedByEmail: user.email || "",
         performedByName: user.displayName || user.email || "System",
         performedByUid: user.uid
@@ -524,22 +532,24 @@ export default function App() {
     const tx = transactions.find(t => t.id === txId);
     const customerNameVal = tx ? tx.customerName : "Unknown Client";
     const shopNameVal = tx ? tx.shopName : "Unknown Shop";
-    const amountVal = tx ? tx.amount : 0;
     
-    await Promise.all([
-      store.deleteTransaction(txId),
-      store.addAuditLog({
+    try {
+      await store.addAuditLog({
         actionType: 'DELETE_TX',
         itemType: 'Transaction',
         itemId: txId,
         itemDisplayName: customerNameVal,
-        details: `Deleted transaction of ₹${amountVal} for customer "${customerNameVal}" from shop "${shopNameVal}"`,
-        detailsTe: `కస్టమర్ "${customerNameVal}" యొక్క ₹${amountVal} లావాదేవీ షాప్ "${shopNameVal}" నుండి తొలగించబడింది`,
+        details: `Deleted transaction of ₹${tx ? tx.amount : 0} for customer "${customerNameVal}" from shop "${shopNameVal}"`,
+        detailsTe: `కస్టమర్ "${customerNameVal}" యొక్క ₹${tx ? tx.amount : 0} లావాదేవీ షాప్ "${shopNameVal}" నుండి తొలగించబడింది`,
         performedByEmail: user.email || "",
         performedByName: user.displayName || user.email || "System",
         performedByUid: user.uid
-      })
-    ]);
+      });
+    } catch (err) {
+      console.error("Audit log failed for delete:", err);
+    }
+    
+    await store.deleteTransaction(txId);
     await loadLedgerData(user.uid, user.email);
   };
 
@@ -778,15 +788,17 @@ export default function App() {
           {/* User profile & Sign Out */}
           <div className="flex items-center gap-3">
             {/* Run ACL Self-Test Button */}
-            <button
-              id="run-self-test-btn"
-              onClick={() => setShowSelfTestModal(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold tracking-wide transition border border-emerald-200 cursor-pointer shadow-2xs mr-1 leading-none"
-              title={language === 'te' ? 'భద్రత & ACL స్వయం రన్ పరీక్షా సదుపాయం' : 'Trigger Security & Access Protection Self-Test Sandbox'}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>{language === 'te' ? 'భద్రతా స్వయం-పరీక్ష' : 'ACL Self-Test'}</span>
-            </button>
+            {isSuperUser && (
+              <button
+                id="run-self-test-btn"
+                onClick={() => setShowSelfTestModal(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold tracking-wide transition border border-emerald-200 cursor-pointer shadow-2xs mr-1 leading-none"
+                title={language === 'te' ? 'భద్రత & ACL స్వయం రన్ పరీక్షా సదుపాయం' : 'Trigger Security & Access Protection Self-Test Sandbox'}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>{language === 'te' ? 'భద్రతా స్వయం-పరీక్ష' : 'ACL Self-Test'}</span>
+              </button>
+            )}
 
             {/* Language Switcher Toggle */}
             <button
@@ -806,7 +818,7 @@ export default function App() {
               </span>
             </div>
 
-            {userRoleTag && (
+            {userRoleTag && userRoleTag !== t.shopOwnerTag && (
               <span className="hidden md:inline-block text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-gray-200 px-2.5 py-1 rounded-md">
                 {userRoleTag}
               </span>
@@ -838,7 +850,7 @@ export default function App() {
       </header>
 
       {/* Main dashboard content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 sm:pb-8 space-y-6">
 
         {firestoreError === 'permissions-error' && (
           <div id="firestore-error-banner" className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-900 shadow-xs max-w-4xl mx-auto">
@@ -913,7 +925,7 @@ export default function App() {
 
         {/* Tab Selection */}
         {!synchronizedSelectedCustomer && (
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-150 pb-2">
+          <div className="hidden sm:flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-150 pb-2">
             <div className="flex gap-1.5 p-1 bg-gray-150/50 border border-gray-200 rounded-xl self-start">
               <button
                 onClick={() => navigate('/')}
@@ -973,7 +985,7 @@ export default function App() {
               )}
 
               <div className="flex items-center gap-3">
-                {userRoleTag && (
+                {userRoleTag && userRoleTag !== t.shopOwnerTag && (
                   <span className="inline-block md:hidden text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-gray-200 px-2 py-0.5 rounded">
                     {userRoleTag}
                   </span>
@@ -1076,6 +1088,57 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation Bar (Visible only on mobile screen widths) */}
+      <nav id="mobile-bottom-nav" className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200/85 py-1 px-4 flex justify-around items-center z-[70] shadow-xl backdrop-blur-md bg-white/95 pb-safe h-16">
+        <button
+          onClick={() => navigate('/')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3.5 rounded-2xl transition-all duration-250 ${
+            activeTab === 'customers' 
+              ? 'text-emerald-800 bg-emerald-50 font-extrabold border border-emerald-100 shadow-2xs scale-102' 
+              : 'text-slate-400 hover:text-slate-600 font-medium'
+          }`}
+        >
+          <UserCheck className="w-5.5 h-5.5 shrink-0" />
+          <span className="text-[9px] tracking-tight mt-0.5 font-bold hidden min-[360px]:block">{t.tabCustomers}</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/transactions')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3.5 rounded-2xl transition-all duration-250 ${
+            activeTab === 'transactions' 
+              ? 'text-emerald-800 bg-emerald-50 font-extrabold border border-emerald-100 shadow-2xs scale-102' 
+              : 'text-slate-400 hover:text-slate-600 font-medium'
+          }`}
+        >
+          <CreditCard className="w-5.5 h-5.5 shrink-0" />
+          <span className="text-[9px] tracking-tight mt-0.5 font-bold hidden min-[360px]:block">{t.tabTransactions}</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/shops')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3.5 rounded-2xl transition-all duration-250 ${
+            activeTab === 'shops' 
+              ? 'text-emerald-800 bg-emerald-50 font-extrabold border border-emerald-100 shadow-2xs scale-102' 
+              : 'text-slate-400 hover:text-slate-600 font-medium'
+          }`}
+        >
+          <Store className="w-5.5 h-5.5 shrink-0" />
+          <span className="text-[9px] tracking-tight mt-0.5 font-bold hidden min-[360px]:block">{t.tabShops}</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/audit')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3.5 rounded-2xl transition-all duration-250 ${
+            activeTab === 'audit' 
+              ? 'text-emerald-800 bg-emerald-50 font-extrabold border border-emerald-100 shadow-2xs scale-102' 
+              : 'text-slate-400 hover:text-slate-600 font-medium'
+          }`}
+        >
+          <History className="w-5.5 h-5.5 shrink-0" />
+          <span className="text-[9px] tracking-tight mt-0.5 font-bold hidden min-[360px]:block">{t.tabAudit}</span>
+        </button>
+      </nav>
 
       {/* Customer Registration Dialog overlay */}
       {showAddCustomerModal && (

@@ -89,7 +89,7 @@ service cloud.firestore {
         && data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 200
         && isValidId(data.shopId)
         && data.shopName is string && data.shopName.size() > 0 && data.shopName.size() <= 200
-        && (data.amount is int || data.amount is float) && data.amount > 0 && data.amount <= 500000
+        && (data.amount is int || data.amount is float) && data.amount != 0 && data.amount >= -500000 && data.amount <= 500000
         && data.status in ['Paid', 'Unpaid']
         && data.notes is string && data.notes.size() <= 1000
         && (data.ownerId == request.auth.uid || (resource != null && data.ownerId == resource.data.ownerId) || hasShopAccess(data.shopId))
