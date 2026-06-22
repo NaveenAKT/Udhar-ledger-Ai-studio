@@ -998,23 +998,6 @@ export default function ShopRegistry({
                           {language === 'te' ? 'యాక్సెస్ భాగస్వామ్యం మాత్రమే' : 'Shared Access Only'}
                         </span>
                       )}
-
-                      <button
-                        type="button"
-                        id={`view-shop-tx-btn-${shop.id}`}
-                        onClick={() => setSelectedShopTxId(selectedShopTxId === shop.id ? null : shop.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
-                          selectedShopTxId === shop.id
-                            ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
-                            : 'bg-emerald-50 text-emerald-800 border-emerald-100 hover:bg-emerald-100'
-                        }`}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        {selectedShopTxId === shop.id 
-                          ? (language === 'te' ? 'లావాదేవీలు దాచు' : 'Hide Transactions') 
-                          : (language === 'te' ? 'లావాదేవీలు చూడండి' : 'View Transactions')
-                        }
-                      </button>
                     </>
                   )}
                 </div>

@@ -768,7 +768,7 @@ export default function App() {
   }
 
   return (
-    <div id="main-ledger-dashboard" className="min-h-screen bg-slate-50 flex flex-col text-slate-900 max-w-full overflow-x-hidden">
+    <div id="main-ledger-dashboard" className="h-[100dvh] bg-slate-50 flex flex-col text-slate-900 max-w-full overflow-hidden">
       
       {/* Header Panel */}
       <header className="bg-white border-b border-gray-200 shrink-0 sticky top-0 z-[60] shadow-xs max-w-full overflow-x-hidden">
@@ -851,7 +851,7 @@ export default function App() {
       </header>
 
       {/* Main dashboard content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 sm:pb-8 space-y-6">
+      <main className="flex-1 overflow-y-auto max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 space-y-6">
 
         {firestoreError === 'permissions-error' && (
           <div id="firestore-error-banner" className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-900 shadow-xs max-w-4xl mx-auto">
@@ -1091,7 +1091,7 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar (Visible only on mobile screen widths) */}
-      <nav id="mobile-bottom-nav" className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200/85 py-1 px-4 flex justify-around items-center z-[70] shadow-xl backdrop-blur-md bg-white/95 pb-safe h-16">
+      <nav id="mobile-bottom-nav" className="sm:hidden shrink-0 bg-white border-t border-gray-200/85 py-1 px-4 flex justify-around items-center z-[70] shadow-xl backdrop-blur-md bg-white/95 pb-safe h-16">
         <button
           onClick={() => navigate('/')}
           className={`flex flex-col items-center justify-center py-1.5 px-3.5 rounded-2xl transition-all duration-250 ${

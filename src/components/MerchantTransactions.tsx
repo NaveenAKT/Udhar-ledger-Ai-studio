@@ -61,6 +61,40 @@ export default function MerchantTransactions({
   // Navigation sub-tab
   const [subTab, setSubTab] = useState<'ledger' | 'audit'>(initialSubTab);
 
+  const formatCurrency = (amt: number) => {
+    const isNegative = amt < 0;
+    const absVal = Math.abs(amt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (isNegative ? '-' : '') + '₹' + absVal;
+  };
+
+  // Pre-calculate sums for merchant-level overview by shop
+  const shopSummaries = useMemo(() => {
+    const summary: Record<string, { unpaid: number; paid: number; txCount: number }> = {};
+    
+    // Initialize with all shops the merchant has access to
+    shops.forEach(sh => {
+      summary[sh.id] = { unpaid: 0, paid: 0, txCount: 0 };
+    });
+    
+    // Process transactions to aggregate totals
+    transactions.forEach(tx => {
+      // Ensure the transaction is relevant to the shops we have access to
+      if (summary[tx.shopId] !== undefined) {
+        summary[tx.shopId].txCount += 1;
+        if (tx.status === 'Unpaid') {
+          summary[tx.shopId].unpaid += tx.amount;
+          if (tx.amount < 0) {
+            summary[tx.shopId].paid += Math.abs(tx.amount);
+          }
+        } else {
+          summary[tx.shopId].paid += tx.amount;
+        }
+      }
+    });
+
+    return summary;
+  }, [shops, transactions]);
+
   useEffect(() => {
     if (initialSubTab) {
       setSubTab(initialSubTab);
@@ -388,31 +422,96 @@ export default function MerchantTransactions({
             {t.merchantLedgerSub || "వ్యాపారి స్థాయి వ్యూ (Merchant Level View) - మీ అన్ని దుకాణాల పరిధిలోని లావాదేవీల ప్రదర్శన"}
           </p>
         </div>
+      </div>
 
-        {/* Sub-tab selection */}
-        <div className="flex gap-1.5 p-1 bg-slate-100 border border-gray-200 rounded-xl">
-          <button
-            onClick={() => setSubTab('ledger')}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-black tracking-tight transition cursor-pointer flex items-center gap-1.5 ${
-              subTab === 'ledger' 
-                ? 'bg-white text-emerald-800 shadow-2xs border border-gray-200' 
-                : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
-            {language === 'te' ? 'లావాదేవీల లెడ్జర్' : 'Transaction Ledger'}
-          </button>
-          <button
-            onClick={() => setSubTab('audit')}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-black tracking-tight transition cursor-pointer flex items-center gap-1.5 ${
-              subTab === 'audit' 
-                ? 'bg-white text-emerald-800 shadow-2xs border border-gray-200' 
-                : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5 text-emerald-600" />
-            {language === 'te' ? 'చర్యల చరిత్ర (Audit Logs)' : 'Action History'}
-          </button>
+      {/* Shops Summary Panel */}
+      <div id="shops-summary-section" className="bg-white border border-gray-150 p-5 rounded-2xl shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+              {language === 'te' ? 'మీ ఆధీనంలో ఉన్న దుకాణాల సారాంశం' : 'Summary of Shops you have access to'}
+            </h3>
+          </div>
+          {selectedShopId !== 'all' && (
+            <button
+              onClick={() => {
+                setSelectedShopId('all');
+                setSearchQuery('');
+              }}
+              className="text-[11px] font-black uppercase tracking-tight text-emerald-650 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>{language === 'te' ? 'అన్ని దుకాణాలు చూపించు' : 'Show All Shops'}</span>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {shops.map(shop => {
+            const currentStats = shopSummaries[shop.id] || { unpaid: 0, paid: 0, txCount: 0 };
+            const isSelected = selectedShopId === shop.id;
+
+            return (
+              <div
+                key={shop.id}
+                id={`shop-summary-card-${shop.id}`}
+                onClick={() => {
+                  if (isSelected) {
+                    setSelectedShopId('all');
+                  } else {
+                    setSelectedShopId(shop.id);
+                  }
+                  setSearchQuery('');
+                }}
+                className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between group h-full relative ${
+                  isSelected 
+                    ? 'border-emerald-600 ring-2 ring-emerald-50 bg-emerald-50/15'
+                    : 'border-gray-150 bg-slate-50/40 hover:bg-slate-50 hover:border-gray-300'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="font-extrabold text-slate-800 text-sm group-hover:text-emerald-800 transition-colors truncate block" title={shop.name}>
+                      {shop.name}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-emerald-600 text-white rounded-md shrink-0">
+                        {language === 'te' ? 'యాక్టివ్' : 'Active'}
+                      </span>
+                    )}
+                  </div>
+                  {shop.address && (
+                    <span className="text-[10px] text-slate-400 block truncate mt-0.5 font-semibold">
+                      {shop.address}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-4 space-y-1.5 pt-2 border-t border-dashed border-gray-150">
+                  <div className="flex justify-between items-center text-xs font-bold">
+                    <span className="text-slate-400">{language === 'te' ? 'బాకీ ఉన్న మొత్తం' : 'Amount Owed'}</span>
+                    <span className="font-mono text-red-650 font-extrabold">
+                      {formatCurrency(currentStats.unpaid)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-bold">
+                    <span className="text-slate-400">{language === 'te' ? 'చెల్లించిన మొత్తం' : 'Settled Amount'}</span>
+                    <span className="font-mono text-emerald-700 font-extrabold">
+                      {formatCurrency(currentStats.paid)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between">
+                  <span>{currentStats.txCount} {language === 'te' ? 'లావాదేవీలు' : 'transactions'}</span>
+                  <span className="text-emerald-600 font-extrabold group-hover:underline opacity-0 group-hover:opacity-100 transition-opacity">
+                    {language === 'te' ? 'చూడండి →' : 'View →'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
