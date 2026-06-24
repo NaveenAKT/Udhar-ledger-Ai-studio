@@ -32,6 +32,7 @@ export default function ShopLedgerDetails({
   const { language, t } = useLanguage();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [minOwedAmount, setMinOwedAmount] = useState<string>('');
 
   // 1. Filter transactions to only those belonging to this particular shop
   const shopTransactions = useMemo(() => {
@@ -107,19 +108,28 @@ export default function ShopLedgerDetails({
     };
   }, [customerSummaryList, shopTransactions]);
 
-  // 5. Apply real-time query filter on aggregated customer records
+  // 5. Apply real-time query filter and amount filter on aggregated customer records
   const filteredCustomerSummaryList = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return customerSummaryList;
+    let result = customerSummaryList;
 
-    return customerSummaryList.filter(item => {
-      const name = (item.customer?.name || item.fallbackName).toLowerCase();
-      const phone = (item.customer?.phone || '').toLowerCase();
-      const village = (item.customer?.village || '').toLowerCase();
-      const mandal = (item.customer?.mandal || '').toLowerCase();
-      return name.includes(query) || phone.includes(query) || village.includes(query) || mandal.includes(query);
-    });
-  }, [customerSummaryList, searchQuery]);
+    const query = searchQuery.toLowerCase().trim();
+    if (query) {
+      result = result.filter(item => {
+        const name = (item.customer?.name || item.fallbackName).toLowerCase();
+        const phone = (item.customer?.phone || '').toLowerCase();
+        const village = (item.customer?.village || '').toLowerCase();
+        const mandal = (item.customer?.mandal || '').toLowerCase();
+        return name.includes(query) || phone.includes(query) || village.includes(query) || mandal.includes(query);
+      });
+    }
+
+    const minAmt = parseFloat(minOwedAmount);
+    if (!isNaN(minAmt)) {
+      result = result.filter(item => item.owed >= minAmt);
+    }
+
+    return result;
+  }, [customerSummaryList, searchQuery, minOwedAmount]);
 
   const formatCurrency = (amt: number) => {
     const isNegative = amt < 0;
@@ -246,15 +256,33 @@ export default function ShopLedgerDetails({
             </p>
           </div>
 
-          <div className="relative max-w-md w-full sm:w-72">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              placeholder={language === 'te' ? 'ఖాతాదారుని శోధించండి (పేరు/ఫోన్)...' : 'Search customer (name/phone)...'}
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white border border-gray-250 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-3xs"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <div className="relative max-w-md w-full sm:w-64">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder={language === 'te' ? 'ఖాతాదారుని శోధించండి (పేరు/ఫోన్)...' : 'Search customer (name/phone)...'}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-250 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-3xs"
+              />
+            </div>
+
+            <div className="relative max-w-xs w-full sm:w-48 flex items-center gap-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 shrink-0">
+                {language === 'te' ? 'బకాయి >=' : 'Owed >= '}
+              </span>
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-mono font-bold">₹</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={minOwedAmount}
+                  onChange={e => setMinOwedAmount(e.target.value)}
+                  className="w-full pl-6 pr-3 py-2 bg-white border border-gray-250 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-3xs"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -405,12 +433,6 @@ export default function ShopLedgerDetails({
         )}
       </div>
 
-      <div className="flex justify-start bg-slate-50 border border-slate-200/60 p-4 rounded-xl text-2xs font-medium text-slate-450 leading-relaxed gap-2 items-center">
-        <Info className="w-4 h-4 text-slate-400 shrink-0" />
-        <span>
-          {language === 'te' ? 'గమనిక: ఒక కస్టమర్ పై క్లిక్ చేయడం ద్వారా, మీరు ఆ కస్టమర్ యొక్క సమగ్ర ప్రొఫైల్ పేజీకి వెళతారు.' : 'Information: Clicking on any customer row takes you to their central customer profile, containing their historic entries across all registered shops.'}
-        </span>
-      </div>
     </motion.div>
   );
 }

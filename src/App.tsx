@@ -13,6 +13,7 @@ import { useLanguage } from './lib/translations';
 import CustomerDirectory from './components/CustomerDirectory';
 import ShopRegistry from './components/ShopRegistry';
 import CustomerProfile from './components/CustomerProfile';
+import ShopLedgerDetails from './components/ShopLedgerDetails';
 import BackgroundAutomation from './components/BackgroundAutomation';
 import MerchantTransactions from './components/MerchantTransactions';
 import SelfTestDashboard from './components/SelfTestDashboard';
@@ -72,10 +73,21 @@ export default function App() {
     return customers.find(c => c.id === routeCustomerId) || null;
   }, [customers, routeCustomerId]);
 
+  // Selected shop dynamically resolved from route path /shop/:shopId
+  const routeShopId = useMemo(() => {
+    const match = location.pathname.match(/^\/shop\/([^/]+)/);
+    return match ? match[1] : null;
+  }, [location.pathname]);
+
+  const selectedShopForDetails = useMemo(() => {
+    if (!routeShopId) return null;
+    return shops.find(s => s.id === routeShopId) || null;
+  }, [shops, routeShopId]);
+
   const activeTab = useMemo(() => {
     const p = location.pathname;
     if (p.startsWith('/shops')) return 'shops';
-    if (p.startsWith('/transactions')) return 'transactions';
+    if (p.startsWith('/transactions') || p.startsWith('/shop/')) return 'transactions';
     if (p.startsWith('/audit')) return 'audit';
     return 'customers'; // default
   }, [location.pathname]);
@@ -229,21 +241,6 @@ export default function App() {
     const phoneClean = custPhone.trim().replace(/\D/g, '');
     if (phoneClean.length !== 10) {
       setCustomerError(language === 'te' ? 'మొబైల్ ఫోన్ నంబర్ ఖచ్చితంగా 10 అంకెలు మాత్రమే ఉండాలి!' : 'Phone number must be exactly 10 digits!');
-      return;
-    }
-
-    // Check if duplicate mobile number exists
-    const isDuplicate = customers.some(c => {
-      const cClean = c.phone.trim().replace(/\D/g, '');
-      return cClean === phoneClean;
-    });
-
-    if (isDuplicate) {
-      setCustomerError(
-        language === 'te' 
-          ? 'ఈ మొబైల్ సంఖ్యతో కస్టమర్ ఇప్పటికే ఉన్నారు! కొత్త కస్టమర్ నమోదు చేయబడదు.' 
-          : 'A customer already exists with this mobile number.'
-      );
       return;
     }
 
@@ -1018,6 +1015,13 @@ export default function App() {
                   onUpdateTransaction={handleUpdateTransactionAction}
                   onDeleteTransaction={handleDeleteTransactionAction}
                   onUpdateCustomer={handleUpdateCustomerAction}
+                />
+              ) : selectedShopForDetails ? (
+                <ShopLedgerDetails
+                  shop={selectedShopForDetails}
+                  transactions={visibleTransactions}
+                  customers={visibleCustomers}
+                  onSelectCustomer={handleSelectCustomer}
                 />
               ) : (
                 <>
