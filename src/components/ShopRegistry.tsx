@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Shop, Transaction, AuditLogEntry, Merchant } from '../types';
 import { useLanguage } from '../lib/translations';
+import { getActionTypeLabel } from './MerchantTransactions';
 import { 
   Store, 
   Plus, 
@@ -1173,7 +1174,7 @@ export default function ShopRegistry({
                       <div key={log.id} className="p-4 hover:bg-slate-50/45 transition">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
                           <span className="text-[10px] font-black uppercase font-mono tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-md px-2 py-0.5">
-                            {log.actionType}
+                            {getActionTypeLabel(log.actionType, language)}
                           </span>
                           <span className="text-[10px] text-slate-400 font-mono font-bold">
                             {new Date(log.createdAt).toLocaleString(language === 'te' ? 'te-IN' : 'en-IN')}

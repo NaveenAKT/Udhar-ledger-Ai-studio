@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Transaction, LedgerUser } from '../types';
 import { useLanguage } from '../lib/translations';
-import { Search, UserPlus, Phone, Store, ArrowRight, UserCheck, Edit2, X, Loader2, Mail } from 'lucide-react';
+import { Search, UserPlus, Phone, Store, ArrowRight, UserCheck, Edit2, X, Loader2, Mail, Trash2, AlertTriangle } from 'lucide-react';
 
 interface CustomerDirectoryProps {
   customers: Customer[];
@@ -43,6 +43,8 @@ export default function CustomerDirectory({
   const [editMandal, setEditMandal] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isSuperUser = currentUser?.email === 'naveenkumar31343@gmail.com' || currentUser?.email === 'akuthota.rajkumar@gmail.com';
 
@@ -88,6 +90,10 @@ export default function CustomerDirectory({
     );
   }, [customers, searchQuery]);
 
+  const customerToDelete = useMemo(() => {
+    return customers.find(c => c.id === confirmDeleteId) || null;
+  }, [customers, confirmDeleteId]);
+
   // Open Edit Dialog
   const handleStartEdit = (e: React.MouseEvent, c: Customer) => {
     e.stopPropagation(); // prevent card click / select redirection
@@ -131,17 +137,6 @@ export default function CustomerDirectory({
       setEditError(err.message || "వివరాలను సవరించడంలో లోపం బంధించబడింది.");
     } finally {
       setIsSavingEdit(false);
-    }
-  };
-
-  const handleDeleteWithConfirm = async (e: React.MouseEvent, customerId: string) => {
-    e.stopPropagation();
-    if (window.confirm("ఈ కస్టమర్‌ను నిరవధికంగా తొలగించాలనుకుంటున్నారా? దీనివల్ల వారి బకాయి సమాచారం పోవచ్చు.")) {
-      try {
-        await onDeleteCustomer(customerId);
-      } catch (err) {
-        console.error(err);
-      }
     }
   };
 
@@ -252,6 +247,82 @@ export default function CustomerDirectory({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Customer Confirmation Modal */}
+      {confirmDeleteId && customerToDelete && (
+        <div id="delete-customer-modal-backdrop" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-[90]" onClick={() => !isDeleting && setConfirmDeleteId(null)}>
+          <div 
+            id="delete-customer-modal-card" 
+            className="bg-white w-full sm:max-w-md p-6 pb-8 sm:pb-6 rounded-t-3xl sm:rounded-2xl shadow-xl border border-gray-100 animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between pb-3 mb-4 border-b border-gray-100">
+              <div className="flex items-center gap-2 text-red-605">
+                <AlertTriangle className="w-5 h-5 animate-pulse shrink-0 text-red-600" />
+                <h3 className="font-extrabold text-base text-red-950">
+                  {language === 'te' ? 'కస్టమర్ తొలగింపు నిర్ధారణ' : 'Confirm Customer Deletion'}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setConfirmDeleteId(null)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                disabled={isDeleting}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-red-50/50 border border-red-100 rounded-xl p-4 text-xs text-red-950 font-semibold space-y-2">
+                <p className="text-sm font-bold text-red-950">
+                  {language === 'te' ? `కస్టమర్: ${customerToDelete.name}` : `Customer: ${customerToDelete.name}`}
+                </p>
+                {customerToDelete.phone && (
+                  <p className="font-mono text-slate-500">
+                    {language === 'te' ? `ఫోన్ నంబర్: ${customerToDelete.phone}` : `Phone: ${customerToDelete.phone}`}
+                  </p>
+                )}
+                <div className="pt-2 border-t border-red-200/50 text-[11px] leading-relaxed text-red-900">
+                  {language === 'te' 
+                    ? '🔴 హెచ్చరిక: ఈ కస్టమర్‌ను తొలగిస్తే వారి అన్ని అనుబంధిత బకాయి మరియు చెల్లింపు లావాదేవీలు (Transactions) కూడా స్వయంచాలకంగా శాశ్వతంగా తొలగించబడతాయి. ఈ చర్యను తిరిగి మార్చలేము.' 
+                    : '🔴 CRITICAL WARNING: Deleting this customer will automatically cascade and permanently delete all of their outstanding dues, ledger history, and payments recorded across all shops in our system. This action cannot be undone.'}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={async () => {
+                    setIsDeleting(true);
+                    try {
+                      await onDeleteCustomer(customerToDelete.id);
+                    } catch (err) {
+                      console.error("Delete customer failed:", err);
+                    } finally {
+                      setIsDeleting(false);
+                      setConfirmDeleteId(null);
+                    }
+                  }}
+                  className="w-full h-12 bg-red-650 hover:bg-red-750 disabled:bg-red-300 text-white rounded-xl text-sm font-black flex items-center justify-center gap-2 cursor-pointer shadow-sm transition active:scale-98"
+                >
+                  {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  {language === 'te' ? 'అవును, కస్టమర్ & బకాయిలను శాశ్వతంగా తొలగించు' : 'Yes, Delete Customer & All Transactions'}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(null)}
+                  disabled={isDeleting}
+                  className="w-full h-12 border border-slate-300 bg-white text-slate-750 rounded-xl hover:bg-slate-50 text-sm font-extrabold transition cursor-pointer active:scale-98"
+                >
+                  {t.deleteNo || "రద్దు చేయి"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -423,22 +494,23 @@ export default function CustomerDirectory({
                   </span>
 
                   {canEditCustomer && (
-                    <div className="flex gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-2 shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={(e) => handleStartEdit(e, customer)}
-                        className="p-1 px-2 text-[10px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-md border border-gray-200 cursor-pointer flex items-center gap-1"
+                        className="h-10 px-3.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl border border-gray-200 cursor-pointer flex items-center gap-1.5 transition active:scale-95"
+                        title={t.actionEdit}
                       >
-                        <Edit2 className="w-3 h-3 text-emerald-650" />
-                        {t.actionEdit}
+                        <Edit2 className="w-3.5 h-3.5 text-emerald-650" />
+                        <span>{t.actionEdit}</span>
                       </button>
-                      {isSuperUser && (
-                        <button
-                          onClick={(e) => handleDeleteWithConfirm(e, customer.id)}
-                          className="p-1 px-2 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-md border border-red-100 cursor-pointer"
-                        >
-                          {t.actionDelete}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setConfirmDeleteId(customer.id)}
+                        className="h-10 px-3.5 text-xs font-bold text-red-650 bg-red-50 hover:bg-red-100 rounded-xl border border-red-100 cursor-pointer flex items-center gap-1.5 transition active:scale-95"
+                        title={t.actionDelete}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-605" />
+                        <span>{t.actionDelete}</span>
+                      </button>
                     </div>
                   )}
                 </div>

@@ -46,6 +46,22 @@ interface MerchantTransactionsProps {
 type SortField = 'date' | 'amount' | 'customer' | 'shop';
 type SortOrder = 'asc' | 'desc';
 
+export const getActionTypeLabel = (actionType: string, lang: 'te' | 'en') => {
+  const map: Record<string, { te: string; en: string }> = {
+    CREATE_TX: { te: 'కొత్త లావాదేవీ', en: 'New Transaction' },
+    UPDATE_TX: { te: 'లావాదేవీ సవరణ', en: 'Transaction Update' },
+    DELETE_TX: { te: 'లావాదేవీ తొలగింపు', en: 'Transaction Deletion' },
+    CREATE_CUSTOMER: { te: 'కస్టమర్ నమోదు', en: 'New Customer' },
+    UPDATE_CUSTOMER: { te: 'కస్టమర్ సవరణ', en: 'Customer Update' },
+    DELETE_CUSTOMER: { te: 'కస్టమర్ తొలగింపు', en: 'Customer Deletion' },
+    CREATE_SHOP: { te: 'దుకాణం నమోదు', en: 'New Shop' },
+    UPDATE_SHOP: { te: 'దుకాణం సవరణ', en: 'Shop Update' },
+    DELETE_SHOP: { te: 'దుకాణం తొలగింపు', en: 'Shop Deletion' },
+    COLLABORATOR_CHANGE: { te: 'సహాయకుల మార్పు', en: 'Collaborator Update' }
+  };
+  return map[actionType]?.[lang] || actionType;
+};
+
 export default function MerchantTransactions({
   transactions,
   customers,
@@ -952,7 +968,7 @@ export default function MerchantTransactions({
                           <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => toggleLogExpand(log.id)}>
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase ${badgeColor}`}>
                               {actionIcon}
-                              <span>{log.actionType}</span>
+                              <span>{getActionTypeLabel(log.actionType, language)}</span>
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-slate-800 cursor-pointer" onClick={() => toggleLogExpand(log.id)}>
@@ -1062,7 +1078,7 @@ export default function MerchantTransactions({
                         <div key={log.id} className="p-4 hover:bg-slate-50/45 transition">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
                             <span className={`text-[10px] font-black uppercase font-mono tracking-wider border rounded-md px-2 py-0.5 ${badge}`}>
-                              {log.actionType}
+                              {getActionTypeLabel(log.actionType, language)}
                             </span>
                             <span className="text-[10px] text-slate-450 font-mono font-bold">
                               {new Date(log.createdAt).toLocaleString(language === 'te' ? 'te-IN' : 'en-IN')}

@@ -83,6 +83,11 @@ export class LocalLedgerStore implements LedgerStore {
     const shops = this.getData<Shop>('shops');
     const filtered = shops.filter(s => s.id !== shopId);
     this.saveData('shops', filtered);
+
+    // Cascade delete transactions of this shop
+    const txs = this.getData<Transaction>('transactions');
+    const filteredTxs = txs.filter(t => t.shopId !== shopId);
+    this.saveData('transactions', filteredTxs);
   }
 
   async updateShopCollaborators(shopId: string, emails: string[], uids: string[]): Promise<void> {
@@ -119,6 +124,11 @@ export class LocalLedgerStore implements LedgerStore {
     const customers = this.getData<Customer>('customers');
     const filtered = customers.filter(c => c.id !== customerId);
     this.saveData('customers', filtered);
+
+    // Cascade delete transactions of this customer
+    const txs = this.getData<Transaction>('transactions');
+    const filteredTxs = txs.filter(t => t.customerId !== customerId);
+    this.saveData('transactions', filteredTxs);
   }
 
   async updateCustomer(customerId: string, name: string, phone: string, email: string, village?: string, mandal?: string): Promise<void> {
@@ -367,6 +377,13 @@ export class FirebaseLedgerStore implements LedgerStore {
   async deleteShop(shopId: string): Promise<void> {
     const path = `shops/${shopId}`;
     try {
+      // Cascade delete transactions associated with this shop
+      const q = query(collection(db, 'transactions'), where('shopId', '==', shopId));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'transactions', d.id));
+      }
+
       await deleteDoc(doc(db, 'shops', shopId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
@@ -420,6 +437,13 @@ export class FirebaseLedgerStore implements LedgerStore {
   async deleteCustomer(customerId: string): Promise<void> {
     const path = `customers/${customerId}`;
     try {
+      // Cascade delete transactions associated with this customer
+      const q = query(collection(db, 'transactions'), where('customerId', '==', customerId));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'transactions', d.id));
+      }
+
       await deleteDoc(doc(db, 'customers', customerId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);

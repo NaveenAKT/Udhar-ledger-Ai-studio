@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Transaction, Shop, LedgerUser, AuditLogEntry } from '../types';
 import { useLanguage } from '../lib/translations';
+import { getActionTypeLabel } from './MerchantTransactions';
 import AddDebtForm from './AddDebtForm';
 import { 
   ArrowLeft, 
@@ -19,7 +20,7 @@ import {
   AlertCircle, 
   X, 
   Loader2,
-  BadgeDollarSign,
+  IndianRupee,
   User,
   Edit2,
   History,
@@ -469,7 +470,7 @@ export default function CustomerProfile({
         <div id="add-tx-inline-container" className="bg-white rounded-2xl border-2 border-emerald-500/80 p-6 shadow-md animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="flex items-center justify-between border-b pb-3 mb-4">
             <h3 className="font-extrabold text-emerald-900 text-base flex items-center gap-2">
-              <BadgeDollarSign className="w-5 h-5 text-emerald-600" />
+              <IndianRupee className="w-5 h-5 text-emerald-600" />
               <span>{t.logDebtFor || "ਲਾਗ ਲਾਭ"}: <span className="text-gray-800 font-extrabold">{customer.name}</span></span>
             </h3>
             <button 
@@ -557,7 +558,7 @@ export default function CustomerProfile({
       <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-4">
         <div>
           <h3 className="font-extrabold text-slate-905 text-base flex items-center gap-2">
-            <BadgeDollarSign className="w-5 h-5 text-emerald-600" />
+            <IndianRupee className="w-5 h-5 text-emerald-600" />
             <span>{language === 'te' ? 'దుకాణాల వారీగా బాకీల వివరాలు (అన్ని దుకాణాలు)' : 'Outstanding Debts by Shop (All Associated Shops)'}</span>
           </h3>
           <p className="text-xs font-semibold text-slate-405 mt-1">
@@ -874,7 +875,7 @@ export default function CustomerProfile({
                 <div key={log.id} className="p-4 hover:bg-slate-50/45 transition">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
                     <span className="text-[10px] font-black uppercase font-mono tracking-wider bg-orange-50 text-orange-700 border border-orange-100 rounded-md px-2 py-0.5 self-start">
-                      {log.actionType}
+                      {getActionTypeLabel(log.actionType, language)}
                     </span>
                     <span className="text-[10px] text-slate-450 font-mono font-bold">
                       {new Date(log.createdAt).toLocaleString(language === 'te' ? 'te-IN' : 'en-IN')}

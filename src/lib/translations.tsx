@@ -28,7 +28,7 @@ export const TeluguTranslations = {
   tabCustomers: "కస్టమర్ డైరెక్టరీ",
   tabShops: "దుకాణాల నమోదు (Shops)",
   tabAutomation: "ఆటోమేషన్ & అలాట్లు (SMS)",
-  tabTransactions: "వ్యాపారి లావాదేవీలు (Ledger)",
+  tabTransactions: "వ్యాపారి నివేదిక (Report)",
   tabAudit: "చర్యల చరిత్ర (Audit Logs)",
 
   // Customer Directory Component
@@ -240,7 +240,7 @@ export const EnglishTranslations = {
   tabCustomers: "Customer Directory",
   tabShops: "Shops",
   tabAutomation: "SMS Alerts",
-  tabTransactions: "Merchant Ledger",
+  tabTransactions: "Merchant Report",
   tabAudit: "Change History",
 
   // Customer Directory Component

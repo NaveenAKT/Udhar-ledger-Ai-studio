@@ -152,7 +152,7 @@ export default function ShopLedgerDetails({
             onClick={() => navigate('/transactions')}
             className="p-2 border border-gray-250 bg-white hover:bg-slate-50 text-slate-705 rounded-xl transition cursor-pointer flex items-center justify-center shrink-0 shadow-3xs"
             id="back-to-transactions-btn"
-            title={language === 'te' ? 'వ్యాపార లావాదేవీలకు తిరిగి వెళ్ళండి' : 'Go back to merchant ledger'}
+            title={language === 'te' ? 'వ్యాపారి నివేదికకు తిరిగి వెళ్ళండి' : 'Go back to merchant report'}
           >
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
