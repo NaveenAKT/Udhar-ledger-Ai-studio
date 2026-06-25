@@ -487,33 +487,26 @@ export default function CustomerDirectory({
                   </div>
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-gray-100/60 flex items-center justify-between text-xs text-slate-400 font-bold group-hover:text-emerald-700 transition-colors">
-                  <span className="inline-flex items-center gap-1.5">
-                    {t.viewProfileLogging}
-                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                  </span>
-
-                  {canEditCustomer && (
-                    <div className="flex gap-2 shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={(e) => handleStartEdit(e, customer)}
-                        className="h-10 px-3.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl border border-gray-200 cursor-pointer flex items-center gap-1.5 transition active:scale-95"
-                        title={t.actionEdit}
-                      >
-                        <Edit2 className="w-3.5 h-3.5 text-emerald-650" />
-                        <span>{t.actionEdit}</span>
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(customer.id)}
-                        className="h-10 px-3.5 text-xs font-bold text-red-650 bg-red-50 hover:bg-red-100 rounded-xl border border-red-100 cursor-pointer flex items-center gap-1.5 transition active:scale-95"
-                        title={t.actionDelete}
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-red-605" />
-                        <span>{t.actionDelete}</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {canEditCustomer && (
+                  <div className="mt-5 pt-3 border-t border-gray-100/60 flex flex-row gap-2 w-full items-center" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={(e) => handleStartEdit(e, customer)}
+                      className="flex-1 h-9 px-3 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl border border-gray-200 cursor-pointer flex items-center justify-center gap-1.5 transition active:scale-95"
+                      title={t.actionEdit}
+                    >
+                      <Edit2 className="w-3 h-3 text-emerald-650 shrink-0" />
+                      <span>{t.actionEdit}</span>
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(customer.id)}
+                      className="flex-1 h-9 px-3 text-xs font-bold text-red-650 bg-red-50 hover:bg-red-100 rounded-xl border border-red-100 cursor-pointer flex items-center justify-center gap-1.5 transition active:scale-95"
+                      title={t.actionDelete}
+                    >
+                      <Trash2 className="w-3 h-3 text-red-605 shrink-0" />
+                      <span>{t.actionDelete}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

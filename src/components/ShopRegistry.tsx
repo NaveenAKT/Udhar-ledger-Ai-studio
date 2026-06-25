@@ -807,7 +807,7 @@ export default function ShopRegistry({
                     <div className="space-y-0.5">
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t.unpaidBalanceLabel}</span>
                       <p className="font-mono text-red-600 font-extrabold text-base">
-                        ${stats.totalUnpaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₹{stats.totalUnpaid.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                     <div className="space-y-0.5">
@@ -1123,7 +1123,7 @@ export default function ShopRegistry({
                           </p>
                         </div>
                         <div className="font-mono text-xs sm:text-sm font-extrabold text-slate-900 text-right shrink-0">
-                          ${tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                     );
